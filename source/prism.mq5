@@ -19,6 +19,7 @@
 #include "Includes/PrismCalendar.mqh"
 #include "Includes/PrismIndicators.mqh"
 #include "Includes/PrismSignals.mqh"
+#include "Includes/PrismPositions.mqh"
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Declare CTrade objects for position management   |
@@ -165,8 +166,8 @@ input group "════════ HISTORY & STATISTICS ═══════
 input int QueryHistory = 2;              // Number of historical trades to analyze for basket calculations
 
 //--- Global Variables
-double _slippage, _marginRequirement, _lotSize, _backupLotSize, _totalHistoryProfit, _symbolHistory;
-int _symbolDigits;
+double _slippage, _marginRequirement, _lotSize, _backupLotSize, _totalHistoryProfit;
+int _symbolHistory;
 bool _incrementLimits = false;
 int _maxStartTrades = 1;
 datetime _lastTradeTime = 0;         // MT5: Changed from int to datetime
@@ -396,22 +397,6 @@ void calculateLotSize()
 }
 
 //+------------------------------------------------------------------+
-//| Set pip point based on symbol digits                             |
-//+------------------------------------------------------------------+
-void setPipPoint()
-{
-   // MT5 CONVERSION: Use SymbolInfoInteger instead of MarketInfo
-   _symbolDigits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
-
-   if(_symbolDigits == 3 || _symbolDigits == 2)
-      _pipPoints = 0.010;
-   else if(_symbolDigits == 5 || _symbolDigits == 4)
-      _pipPoints = 0.00010;
-   else
-      _pipPoints = 0.00010;  // Default for other digit counts
-}
-
-//+------------------------------------------------------------------+
 //| Close all positions (MT5: Complete rewrite for position model)   |
 //+------------------------------------------------------------------+
 void closeAll(string type = "none")
@@ -453,112 +438,6 @@ void closeAll(string type = "none")
    }
 }
 
-//+------------------------------------------------------------------+
-//| Prepare historical profit data (MT5: Updated for new history)    |
-//+------------------------------------------------------------------+
-void prepareHistory()
-{
-   _symbolHistory = 0;
-   _totalHistoryProfit = 0;
-
-   // MT5 CONVERSION: Use HistorySelect to load history
-   // MT4: OrdersHistoryTotal() returns total orders in history
-   // MT5: Must call HistorySelect first, then HistoryDealsTotal()
-   if(!HistorySelect(0, TimeCurrent()))
-   {
-      Print("Error selecting history: ", GetLastError());
-      return;
-   }
-
-   int totalDeals = HistoryDealsTotal();
-   int counted = 0;
-   double QueryHistoryDouble = (double)QueryHistory;
-
-   // MT5 CONVERSION: Iterate through history deals instead of orders
-   // MT4: OrderSelect(iPos, SELECT_BY_POS, MODE_HISTORY)
-   // MT5: HistoryDealGetTicket(i), then HistoryDealGet*() functions
-   for(int i = totalDeals - 1; i >= 0 && counted < _totalHistory; i--)
-   {
-      ulong ticket = HistoryDealGetTicket(i);
-      if(ticket == 0) continue;
-
-      // Check if deal belongs to this symbol and EA
-      // MT5 CONVERSION: Uses HistoryDealGet*() instead of Order*() functions
-      if(HistoryDealGetString(ticket, DEAL_SYMBOL) == _Symbol &&
-         HistoryDealGetInteger(ticket, DEAL_MAGIC) == _MAGIC &&
-         HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)  // Exit deals only
-      {
-         if(_symbolHistory >= QueryHistoryDouble) break;
-
-         _totalHistoryProfit += HistoryDealGetDouble(ticket, DEAL_PROFIT);
-         _symbolHistory = _symbolHistory + 1;
-         counted++;
-      }
-   }
-}
-
-
-//+------------------------------------------------------------------+
-//| Prepare position information (MT5: Rewritten for position model) |
-//+------------------------------------------------------------------+
-void preparePositions()
-{
-   _market.nearLongPosition = false;
-   _market.nearShortPosition = false;
-   _stats.Reset();
-
-   _symbolInfo.RefreshRates();
-   double ask = _symbolInfo.Ask();
-   double bid = _symbolInfo.Bid();
-
-   // MT5 CONVERSION: Iterate through positions instead of orders
-   // MT4: for(int i = 0; i < OrdersTotal(); i++) OrderSelect(i, SELECT_BY_POS, MODE_TRADES)
-   // MT5: for(int i = 0; i < PositionsTotal(); i++) _positionInfo.SelectByIndex(i)
-   for(int i = 0; i < PositionsTotal(); i++)
-   {
-      if(!_positionInfo.SelectByIndex(i)) continue;
-
-      if(_positionInfo.Symbol() == _Symbol && _positionInfo.Magic() == _MAGIC)
-      {
-         _stats.totalTrades++;
-
-         // Check for backup trades
-         if(StringFind(_positionInfo.Comment(), "Backup", 0) > -1)
-            _stats.totalBackupTrades++;
-
-         if(_positionInfo.StopLoss() == 0)
-         {
-            // MT5 CONVERSION: Check position type
-            // MT4: OrderType() == OP_BUY/OP_SELL
-            // MT5: _positionInfo.PositionType() == POSITION_TYPE_BUY/POSITION_TYPE_SELL
-            if(_positionInfo.PositionType() == POSITION_TYPE_BUY &&
-               MathAbs(_positionInfo.PriceOpen() - ask) < _indicators.ATR * TradeSpace)
-               _market.nearLongPosition = true;
-            else if(_positionInfo.PositionType() == POSITION_TYPE_SELL &&
-                    MathAbs(_positionInfo.PriceOpen() - bid) < _indicators.ATR * TradeSpace)
-               _market.nearShortPosition = true;
-
-            if(_positionInfo.PositionType() == POSITION_TYPE_BUY)
-            {
-               _stats.buyLots += _positionInfo.Volume();
-               _stats.openType = (int)POSITION_TYPE_BUY;
-            }
-            else if(_positionInfo.PositionType() == POSITION_TYPE_SELL)
-            {
-               _stats.sellLots += _positionInfo.Volume();
-               _stats.openType = (int)POSITION_TYPE_SELL;
-            }
-
-            if(_positionInfo.Profit() > 0)
-               _stats.totalProfit += _positionInfo.Profit();
-            else
-               _stats.totalLoss += _positionInfo.Profit();
-         }
-      }
-   }
-}
-
-
 
 //+------------------------------------------------------------------+
 //| Main preparation function - calls all prep functions in sequence |
@@ -573,9 +452,9 @@ void prepare()
                        SignalC, SignalCStartHour, SignalCEndHour,
                        SignalD, SignalDStartHour, SignalDEndHour,
                        _pipPoints, EnableCalendar, TrailCalendarMinutes);  // Analyze trend and generate signals
-   setPipPoint();        // Set pip point based on digits
-   prepareHistory();     // Calculate historical profit
-   preparePositions();   // Count and analyze open positions
+   _pipPoints = GetPipPoint();
+   _totalHistoryProfit = CalculateHistoricalProfit(_MAGIC, QueryHistory, _symbolHistory);
+   AnalyzePositions(_stats, _market, _MAGIC, _indicators.ATR, TradeSpace);
    calculateLotSize();   // Calculate lot sizes and check daily growth
    update();             // Update _display on chart
 }
