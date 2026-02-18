@@ -16,6 +16,7 @@
 #include <Trade\SymbolInfo.mqh>
 #include <Trade\AccountInfo.mqh>
 #include "Includes/PrismCalendar.mqh"
+#include "Includes/PrismIndicators.mqh"
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Declare CTrade objects for position management   |
@@ -162,8 +163,7 @@ input group "════════ HISTORY & STATISTICS ═══════
 input int QueryHistory = 2;              // Number of historical trades to analyze for basket calculations
 
 //--- Global Variables
-double slippage, marginRequirement, lotSize, backupLotSize, totalHistoryProfit, totalProfit, totalLoss, symbolHistory, ical;
-double eATR, eADXMain, eADXPlusDi, eADXMinusDi, eADXMainPrev, eADXPlusDiPrev, eADXMinusDiPrev, MA1Cur, MA1Prev, MA2Cur, MA2Prev;
+double slippage, marginRequirement, lotSize, backupLotSize, totalHistoryProfit, totalProfit, totalLoss, symbolHistory;
 int symbolDigits, totalTrades, totalBackupTrades;
 bool nearLongPosition = false;
 bool nearShortPosition = false;
@@ -172,14 +172,7 @@ bool bullish = false;
 bool bearish = false;
 bool incrementLimits = false;
 int MaxStartTrades = 1;
-int ATRTimeFrame = 0;
-int ATRShift = 0;
-int ADXTimeFrame = 0;
-int ADXShift = 0;
-int MATimeFrame = 0;
 datetime lastTradeTime = 0;         // MT5: Changed from int to datetime
-int MMAShift = 0;
-int MAShift = 0;
 int totalHistory = 100;
 int basketNumber = 0;
 int basketNumberType = -1;
@@ -192,7 +185,6 @@ double DynamicSlippage = 1;
 double BaseLotSize = 0.01;
 double marginLevel = 0;
 double spread = 0;
-double trendStrength = 0;
 double longHistortProfit = 0;
 double dailyGrowth = 0;
 double maxEquity = 0;
@@ -205,25 +197,8 @@ int dailyTargets = 0;
 int totalDays = 0;
 int turn = 0;
 
-//+------------------------------------------------------------------+
-//| MT5 CONVERSION: Indicator handles (replace direct iIndicator())  |
-//+------------------------------------------------------------------+
-int handleATR;
-int handleADX;
-int handleMA1;
-int handleMA2;
-int handleCalendar;  // Legacy handle, not used (calendar via native API)
-
-//+------------------------------------------------------------------+
-//| MT5 CONVERSION: Arrays for indicator buffers                     |
-//+------------------------------------------------------------------+
-double bufferATR[];
-double bufferADXMain[];
-double bufferADXPlusDI[];
-double bufferADXMinusDI[];
-double bufferMA1[];
-double bufferMA2[];
-double bufferCalendar[];
+IndicatorHandles _handles;
+IndicatorValues _indicators;
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Price arrays for bar data access                 |
@@ -248,11 +223,9 @@ int OnInit()
    trade.SetTypeFilling(ORDER_FILLING_FOK);  // Fill or Kill order type
    trade.SetAsyncMode(false);                // Synchronous execution
 
-   // MT5 CONVERSION: Create indicator handles (replaces direct iIndicator calls)
-   handleATR = iATR(_Symbol, PERIOD_CURRENT, ATRPeriod);
-   handleADX = iADX(_Symbol, PERIOD_CURRENT, ADXPeriod);
-   handleMA1 = iMA(_Symbol, PERIOD_M5, MA1Period, MMAShift, MODE_SMMA, PRICE_MEDIAN);
-   handleMA2 = iMA(_Symbol, PERIOD_M5, MA2Period, MMAShift, MODE_SMMA, PRICE_MEDIAN);
+   // Initialize indicator handles
+   if(!InitializeIndicators(_handles, ATRPeriod, ADXPeriod, MA1Period, MA2Period, 0))
+      return(INIT_FAILED);
 
    // CALENDAR INTEGRATION - MT5 Native Implementation
    // =================================================
@@ -261,8 +234,6 @@ int OnInit()
    //    - CalendarValueHistory() to get scheduled news events
    //    - CalendarEventById() to get event details
    //    - CalendarCountryById() to filter by country/currency
-   //
-   // Calendar filtering is implemented in prepareCalendar() function
    if(EnableCalendar)
    {
       Print("╔════════════════════════════════════════════════════════════╗");
@@ -279,26 +250,7 @@ int OnInit()
       Print("╚════════════════════════════════════════════════════════════╝");
    }
 
-   // Check if all required indicators were created successfully
-   if(handleATR == INVALID_HANDLE || handleADX == INVALID_HANDLE ||
-      handleMA1 == INVALID_HANDLE || handleMA2 == INVALID_HANDLE)
-   {
-      Print("ERROR: Failed to create indicator handles");
-      Print("ATR Handle: ", handleATR);
-      Print("ADX Handle: ", handleADX);
-      Print("MA1 Handle: ", handleMA1);
-      Print("MA2 Handle: ", handleMA2);
-      return(INIT_FAILED);
-   }
-
-   // MT5 CONVERSION: Set all arrays as series (index 0 = most recent)
-   ArraySetAsSeries(bufferATR, true);
-   ArraySetAsSeries(bufferADXMain, true);
-   ArraySetAsSeries(bufferADXPlusDI, true);
-   ArraySetAsSeries(bufferADXMinusDI, true);
-   ArraySetAsSeries(bufferMA1, true);
-   ArraySetAsSeries(bufferMA2, true);
-   ArraySetAsSeries(bufferCalendar, true);
+   // MT5 CONVERSION: Set price arrays as series (index 0 = most recent)
    ArraySetAsSeries(closeArray, true);
    ArraySetAsSeries(openArray, true);
    ArraySetAsSeries(highArray, true);
@@ -316,12 +268,8 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
 {
-   // MT5 CONVERSION: Release indicator handles to free resources
-   if(handleATR != INVALID_HANDLE) IndicatorRelease(handleATR);
-   if(handleADX != INVALID_HANDLE) IndicatorRelease(handleADX);
-   if(handleMA1 != INVALID_HANDLE) IndicatorRelease(handleMA1);
-   if(handleMA2 != INVALID_HANDLE) IndicatorRelease(handleMA2);
-   if(EnableCalendar && handleCalendar != INVALID_HANDLE) IndicatorRelease(handleCalendar);
+   // Release indicator handles
+   _handles.Release();
 
    // Clean up chart objects
    ObjectDelete(0, "hud");
@@ -380,7 +328,7 @@ void calculateLotSize()
    spread = (ask - bid) / pipPoints;
 
    // Dynamic slippage based on ATR
-   slippage = NormalizeDouble((eATR / pipPoints) * DynamicSlippage, 1);
+   slippage = NormalizeDouble((_indicators.ATR / pipPoints) * DynamicSlippage, 1);
 
    // Calculate margin requirement for base lot size
    marginRequirement = marginCalculate(_Symbol, BaseLotSize);
@@ -571,7 +519,7 @@ void prepareTrend()
    if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 1, openArray) < 1) return;
 
    // Check for ranging market
-   if(eADXMain < ADXMain)
+   if(_indicators.ADXMain < ADXMain)
    {
       rangingMarket = true;
       bullish = false;
@@ -587,16 +535,16 @@ void prepareTrend()
          (currentHour <= 23 && currentHour >= SignalAStartHour)))))
       {
          signalComment = "SignalA";
-         if(MathAbs(trendStrength) > MinTrend * pipPoints &&
-            MathAbs(trendStrength) < MaxTrend * pipPoints &&
-            MathAbs(closeArray[0] - MA1Cur) > TrendSpace * pipPoints)
+         if(MathAbs(_indicators.trendStrength) > MinTrend * pipPoints &&
+            MathAbs(_indicators.trendStrength) < MaxTrend * pipPoints &&
+            MathAbs(closeArray[0] - _indicators.MA1Current) > TrendSpace * pipPoints)
          {
-            if(MA1Cur < MA2Cur && MA2Cur > MA2Prev && closeArray[0] < MA2Cur)
+            if(_indicators.MA1Current < _indicators.MA2Current && _indicators.MA2Current > _indicators.MA2Previous && closeArray[0] < _indicators.MA2Current)
             {
                bullish = true;
                bearish = false;
             }
-            else if(MA1Cur > MA2Cur && MA2Cur < MA2Prev && closeArray[0] > MA2Cur)
+            else if(_indicators.MA1Current > _indicators.MA2Current && _indicators.MA2Current < _indicators.MA2Previous && closeArray[0] > _indicators.MA2Current)
             {
                bearish = true;
                bullish = false;
@@ -610,12 +558,12 @@ void prepareTrend()
          (currentHour <= 23 && currentHour >= SignalBStartHour)))))
       {
          signalComment = "SignalB";
-         if(MA1Cur < MA2Cur && eADXPlusDi > ADXMain && eADXPlusDiPrev < eADXMinusDi && closeArray[0] < MA2Cur)
+         if(_indicators.MA1Current < _indicators.MA2Current && _indicators.ADXPlusDI > ADXMain && _indicators.ADXPlusDIPrev < _indicators.ADXMinusDI && closeArray[0] < _indicators.MA2Current)
          {
             bullish = true;
             bearish = false;
          }
-         else if(MA1Cur > MA2Cur && eADXMinusDi > ADXMain && eADXMinusDiPrev < eADXMinusDi && closeArray[0] > MA2Cur)
+         else if(_indicators.MA1Current > _indicators.MA2Current && _indicators.ADXMinusDI > ADXMain && _indicators.ADXMinusDIPrev < _indicators.ADXMinusDI && closeArray[0] > _indicators.MA2Current)
          {
             bearish = true;
             bullish = false;
@@ -628,14 +576,14 @@ void prepareTrend()
          (currentHour <= 23 && currentHour >= SignalCStartHour)))))
       {
          signalComment = "SignalC";
-         if(MathAbs(trendStrength) > MaxTrend * pipPoints)
+         if(MathAbs(_indicators.trendStrength) > MaxTrend * pipPoints)
          {
-            if(MA1Cur < MA2Cur && MA2Cur > MA2Prev)
+            if(_indicators.MA1Current < _indicators.MA2Current && _indicators.MA2Current > _indicators.MA2Previous)
             {
                bearish = true;
                bullish = false;
             }
-            else if(MA1Cur > MA2Cur && MA2Cur < MA2Prev)
+            else if(_indicators.MA1Current > _indicators.MA2Current && _indicators.MA2Current < _indicators.MA2Previous)
             {
                bullish = true;
                bearish = false;
@@ -654,14 +602,14 @@ void prepareTrend()
          (currentHour <= 23 && currentHour >= SignalDStartHour)))) && calendarCondition)
       {
          signalComment = "SignalD";
-         if(MathAbs(trendStrength) > MinTrend * pipPoints && MathAbs(trendStrength) < MaxTrend * pipPoints)
+         if(MathAbs(_indicators.trendStrength) > MinTrend * pipPoints && MathAbs(_indicators.trendStrength) < MaxTrend * pipPoints)
          {
-            if(MA1Cur > MA1Prev && MA2Cur > MA1Cur && eADXPlusDi > eADXMinusDi && closeArray[0] > MA1Cur)
+            if(_indicators.MA1Current > _indicators.MA1Previous && _indicators.MA2Current > _indicators.MA1Current && _indicators.ADXPlusDI > _indicators.ADXMinusDI && closeArray[0] > _indicators.MA1Current)
             {
                bullish = true;
                bearish = false;
             }
-            else if(MA1Cur > MA1Prev && MA2Cur > MA1Cur && eADXMinusDi > eADXPlusDi && closeArray[0] < MA1Cur)
+            else if(_indicators.MA1Current > _indicators.MA1Previous && _indicators.MA2Current > _indicators.MA1Current && _indicators.ADXMinusDI > _indicators.ADXPlusDI && closeArray[0] < _indicators.MA1Current)
             {
                bullish = false;
                bearish = true;
@@ -711,10 +659,10 @@ void preparePositions()
             // MT4: OrderType() == OP_BUY/OP_SELL
             // MT5: positionInfo.PositionType() == POSITION_TYPE_BUY/POSITION_TYPE_SELL
             if(positionInfo.PositionType() == POSITION_TYPE_BUY &&
-               MathAbs(positionInfo.PriceOpen() - ask) < eATR * TradeSpace)
+               MathAbs(positionInfo.PriceOpen() - ask) < _indicators.ATR * TradeSpace)
                nearLongPosition = true;
             else if(positionInfo.PositionType() == POSITION_TYPE_SELL &&
-                    MathAbs(positionInfo.PriceOpen() - bid) < eATR * TradeSpace)
+                    MathAbs(positionInfo.PriceOpen() - bid) < _indicators.ATR * TradeSpace)
                nearShortPosition = true;
 
             if(positionInfo.PositionType() == POSITION_TYPE_BUY)
@@ -737,72 +685,6 @@ void preparePositions()
    }
 }
 
-//+------------------------------------------------------------------+
-//| Prepare indicator values (MT5: Complete rewrite for buffers)     |
-//+------------------------------------------------------------------+
-void prepareIndicators()
-{
-   // MT5 CONVERSION: Copy indicator buffers instead of direct access
-   // MT4: eATR = iATR(NULL, ATRTimeFrame, ATRPeriod, ATRShift);
-   // MT5: CopyBuffer(handleATR, 0, ATRShift, 1, bufferATR); eATR = bufferATR[0];
-
-   if(CopyBuffer(handleATR, 0, ATRShift, 1, bufferATR) < 1)
-   {
-      Print("Error copying ATR buffer: ", GetLastError());
-      return;
-   }
-   eATR = bufferATR[0];
-
-   // Copy ADX buffers - need enough bars for shift check
-   int adxBarsNeeded = ADXShift + ADXShiftCheck + 1;
-   if(CopyBuffer(handleADX, MAIN_LINE, ADXShift, adxBarsNeeded, bufferADXMain) < adxBarsNeeded)
-   {
-      Print("Error copying ADX Main buffer: ", GetLastError());
-      return;
-   }
-   if(CopyBuffer(handleADX, PLUSDI_LINE, ADXShift, adxBarsNeeded, bufferADXPlusDI) < adxBarsNeeded)
-   {
-      Print("Error copying ADX +DI buffer: ", GetLastError());
-      return;
-   }
-   if(CopyBuffer(handleADX, MINUSDI_LINE, ADXShift, adxBarsNeeded, bufferADXMinusDI) < adxBarsNeeded)
-   {
-      Print("Error copying ADX -DI buffer: ", GetLastError());
-      return;
-   }
-
-   eADXMain = bufferADXMain[0];
-   eADXPlusDi = bufferADXPlusDI[0];
-   eADXMinusDi = bufferADXMinusDI[0];
-   eADXMainPrev = bufferADXMain[ADXShiftCheck];
-   eADXPlusDiPrev = bufferADXPlusDI[ADXShiftCheck];
-   eADXMinusDiPrev = bufferADXMinusDI[ADXShiftCheck];
-
-   // Copy MA buffers
-   int maBarsNeeded = MAShift + MAShiftCheck + 1;
-   if(CopyBuffer(handleMA1, 0, MAShift, maBarsNeeded, bufferMA1) < maBarsNeeded)
-   {
-      Print("Error copying MA1 buffer: ", GetLastError());
-      return;
-   }
-   if(CopyBuffer(handleMA2, 0, MAShift, maBarsNeeded, bufferMA2) < maBarsNeeded)
-   {
-      Print("Error copying MA2 buffer: ", GetLastError());
-      return;
-   }
-
-   MA1Cur = bufferMA1[0];
-   MA1Prev = bufferMA1[MAShiftCheck];
-   MA2Cur = bufferMA2[0];
-   MA2Prev = bufferMA2[MAShiftCheck];
-
-   // Calendar integration is now handled by prepareCalendar() using MT5 native API
-   // The ical variable is kept for legacy compatibility but not used
-   ical = 0;
-
-   trendStrength = MA1Cur - MA1Prev;
-}
-
 
 
 //+------------------------------------------------------------------+
@@ -810,7 +692,7 @@ void prepareIndicators()
 //+------------------------------------------------------------------+
 void prepare()
 {
-   prepareIndicators();  // Get indicator values
+   ReadIndicatorValues(_handles, _indicators, 0, 0, ADXShiftCheck, 0, MAShiftCheck);  // Get indicator values
    PrepareCalendar(_calendar, EnableCalendar, IncludeHigh, IncludeMedium, IncludeLow, IncludeSpeaks);  // Fetch economic calendar events using MT5 API
    prepareTrend();       // Analyze trend and generate signals
    setPipPoint();        // Set pip point based on digits
@@ -1154,7 +1036,7 @@ void update()
    display = display + "\n Growth: " + DoubleToString(dailyGrowth / accountInfo.Balance() * 100, 1) +
              " / " + DoubleToString(DailyGrowth * 100, 1) + "%" +
              " Milestones: " + IntegerToString(dailyTargets) + " / " + IntegerToString(totalDays) +
-             " Trend: " + DoubleToString(trendStrength / pipPoints, 1);
+             " Trend: " + DoubleToString(_indicators.trendStrength / pipPoints, 1);
    display = display + " Spread: " + DoubleToString(spread, 1);
 
    // MT5 CONVERSION: Create or update chart label
