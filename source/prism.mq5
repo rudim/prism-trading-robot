@@ -17,6 +17,7 @@
 #include <Trade\AccountInfo.mqh>
 #include "Includes/PrismCalendar.mqh"
 #include "Includes/PrismIndicators.mqh"
+#include "Includes/PrismSignals.mqh"
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Declare CTrade objects for position management   |
@@ -165,11 +166,6 @@ input int QueryHistory = 2;              // Number of historical trades to analy
 //--- Global Variables
 double slippage, marginRequirement, lotSize, backupLotSize, totalHistoryProfit, totalProfit, totalLoss, symbolHistory;
 int symbolDigits, totalTrades, totalBackupTrades;
-bool nearLongPosition = false;
-bool nearShortPosition = false;
-bool rangingMarket = false;
-bool bullish = false;
-bool bearish = false;
 bool incrementLimits = false;
 int MaxStartTrades = 1;
 datetime lastTradeTime = 0;         // MT5: Changed from int to datetime
@@ -190,7 +186,6 @@ double dailyGrowth = 0;
 double maxEquity = 0;
 double maxBasketDrawDown = 0;
 string display = "\n";
-string signalComment = "";
 CalendarData _calendar;
 
 int dailyTargets = 0;
@@ -199,6 +194,7 @@ int turn = 0;
 
 IndicatorHandles _handles;
 IndicatorValues _indicators;
+MarketConditions _market;
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Price arrays for bar data access                 |
@@ -502,130 +498,14 @@ void prepareHistory()
    }
 }
 
-//+------------------------------------------------------------------+
-//| Analyze trend conditions and generate signals                    |
-//+------------------------------------------------------------------+
-void prepareTrend()
-{
-   // MT5 CONVERSION: Get current time structure
-   // MT4: Hour() returns current hour directly
-   // MT5: Must use MqlDateTime structure
-   MqlDateTime tm;
-   TimeCurrent(tm);
-   int currentHour = tm.hour;
-
-   // Copy price data for current bar
-   if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 1, closeArray) < 1) return;
-   if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 1, openArray) < 1) return;
-
-   // Check for ranging market
-   if(_indicators.ADXMain < ADXMain)
-   {
-      rangingMarket = true;
-      bullish = false;
-      bearish = false;
-   }
-   else
-   {
-      rangingMarket = false;
-
-      // Signal A: Trend-based using MA crossovers and trend strength within specific pip ranges
-      if(SignalA && ((SignalAStartHour < SignalAEndHour && currentHour >= SignalAStartHour && currentHour < SignalAEndHour) ||
-         (SignalAStartHour > SignalAEndHour && ((currentHour <= SignalAEndHour && currentHour >= 0) ||
-         (currentHour <= 23 && currentHour >= SignalAStartHour)))))
-      {
-         signalComment = "SignalA";
-         if(MathAbs(_indicators.trendStrength) > MinTrend * pipPoints &&
-            MathAbs(_indicators.trendStrength) < MaxTrend * pipPoints &&
-            MathAbs(closeArray[0] - _indicators.MA1Current) > TrendSpace * pipPoints)
-         {
-            if(_indicators.MA1Current < _indicators.MA2Current && _indicators.MA2Current > _indicators.MA2Previous && closeArray[0] < _indicators.MA2Current)
-            {
-               bullish = true;
-               bearish = false;
-            }
-            else if(_indicators.MA1Current > _indicators.MA2Current && _indicators.MA2Current < _indicators.MA2Previous && closeArray[0] > _indicators.MA2Current)
-            {
-               bearish = true;
-               bullish = false;
-            }
-         }
-      }
-
-      // Signal B: ADX directional indicator crossover signals
-      if(SignalB && ((SignalBStartHour < SignalBEndHour && currentHour >= SignalBStartHour && currentHour < SignalBEndHour) ||
-         (SignalBStartHour > SignalBEndHour && ((currentHour <= SignalBEndHour && currentHour >= 0) ||
-         (currentHour <= 23 && currentHour >= SignalBStartHour)))))
-      {
-         signalComment = "SignalB";
-         if(_indicators.MA1Current < _indicators.MA2Current && _indicators.ADXPlusDI > ADXMain && _indicators.ADXPlusDIPrev < _indicators.ADXMinusDI && closeArray[0] < _indicators.MA2Current)
-         {
-            bullish = true;
-            bearish = false;
-         }
-         else if(_indicators.MA1Current > _indicators.MA2Current && _indicators.ADXMinusDI > ADXMain && _indicators.ADXMinusDIPrev < _indicators.ADXMinusDI && closeArray[0] > _indicators.MA2Current)
-         {
-            bearish = true;
-            bullish = false;
-         }
-      }
-
-      // Signal C: Strong trend detection for counter-trend positions
-      if(SignalC && ((SignalCStartHour < SignalCEndHour && currentHour >= SignalCStartHour && currentHour < SignalCEndHour) ||
-         (SignalCStartHour > SignalCEndHour && ((currentHour <= SignalCEndHour && currentHour >= 0) ||
-         (currentHour <= 23 && currentHour >= SignalCStartHour)))))
-      {
-         signalComment = "SignalC";
-         if(MathAbs(_indicators.trendStrength) > MaxTrend * pipPoints)
-         {
-            if(_indicators.MA1Current < _indicators.MA2Current && _indicators.MA2Current > _indicators.MA2Previous)
-            {
-               bearish = true;
-               bullish = false;
-            }
-            else if(_indicators.MA1Current > _indicators.MA2Current && _indicators.MA2Current < _indicators.MA2Previous)
-            {
-               bullish = true;
-               bearish = false;
-            }
-         }
-      }
-
-      // Signal D: Combined MA momentum and ADX directional signals with calendar integration
-      // Calendar check: Only trade if enough time has passed since last news event
-      bool calendarCondition = (!EnableCalendar) ||
-         (EnableCalendar && _calendar.eventTime1 > TrailCalendarMinutes &&
-          GetCalendarTypeString(_calendar.type1) == "since ");
-
-      if(SignalD && ((SignalDStartHour < SignalDEndHour && currentHour >= SignalDStartHour && currentHour < SignalDEndHour) ||
-         (SignalDStartHour > SignalDEndHour && ((currentHour <= SignalDEndHour && currentHour >= 0) ||
-         (currentHour <= 23 && currentHour >= SignalDStartHour)))) && calendarCondition)
-      {
-         signalComment = "SignalD";
-         if(MathAbs(_indicators.trendStrength) > MinTrend * pipPoints && MathAbs(_indicators.trendStrength) < MaxTrend * pipPoints)
-         {
-            if(_indicators.MA1Current > _indicators.MA1Previous && _indicators.MA2Current > _indicators.MA1Current && _indicators.ADXPlusDI > _indicators.ADXMinusDI && closeArray[0] > _indicators.MA1Current)
-            {
-               bullish = true;
-               bearish = false;
-            }
-            else if(_indicators.MA1Current > _indicators.MA1Previous && _indicators.MA2Current > _indicators.MA1Current && _indicators.ADXMinusDI > _indicators.ADXPlusDI && closeArray[0] < _indicators.MA1Current)
-            {
-               bullish = false;
-               bearish = true;
-            }
-         }
-      }
-   }
-}
 
 //+------------------------------------------------------------------+
 //| Prepare position information (MT5: Rewritten for position model) |
 //+------------------------------------------------------------------+
 void preparePositions()
 {
-   nearLongPosition = false;
-   nearShortPosition = false;
+   _market.nearLongPosition = false;
+   _market.nearShortPosition = false;
    totalTrades = 0;
    totalBackupTrades = 0;
    totalProfit = 0;
@@ -660,10 +540,10 @@ void preparePositions()
             // MT5: positionInfo.PositionType() == POSITION_TYPE_BUY/POSITION_TYPE_SELL
             if(positionInfo.PositionType() == POSITION_TYPE_BUY &&
                MathAbs(positionInfo.PriceOpen() - ask) < _indicators.ATR * TradeSpace)
-               nearLongPosition = true;
+               _market.nearLongPosition = true;
             else if(positionInfo.PositionType() == POSITION_TYPE_SELL &&
                     MathAbs(positionInfo.PriceOpen() - bid) < _indicators.ATR * TradeSpace)
-               nearShortPosition = true;
+               _market.nearShortPosition = true;
 
             if(positionInfo.PositionType() == POSITION_TYPE_BUY)
             {
@@ -694,7 +574,12 @@ void prepare()
 {
    ReadIndicatorValues(_handles, _indicators, 0, 0, ADXShiftCheck, 0, MAShiftCheck);  // Get indicator values
    PrepareCalendar(_calendar, EnableCalendar, IncludeHigh, IncludeMedium, IncludeLow, IncludeSpeaks);  // Fetch economic calendar events using MT5 API
-   prepareTrend();       // Analyze trend and generate signals
+   AnalyzeTrendSignals(_market, _indicators, _calendar,
+                       SignalA, SignalAStartHour, SignalAEndHour, MinTrend, MaxTrend, TrendSpace,
+                       SignalB, SignalBStartHour, SignalBEndHour, ADXMain,
+                       SignalC, SignalCStartHour, SignalCEndHour,
+                       SignalD, SignalDStartHour, SignalDEndHour,
+                       pipPoints, EnableCalendar, TrailCalendarMinutes);  // Analyze trend and generate signals
    setPipPoint();        // Set pip point based on digits
    prepareHistory();     // Calculate historical profit
    preparePositions();   // Count and analyze open positions
@@ -719,7 +604,7 @@ void sendOpen()
    if((SafeSpread && spread < MaxSpread) || !SafeSpread)
    {
       // Long position signal
-      if(!nearLongPosition && bullish && sellLots == 0 && openArray[0] < closeArray[0])
+      if(!_market.nearLongPosition && _market.bullish && sellLots == 0 && openArray[0] < closeArray[0])
       {
          if(basketNumberType != (int)POSITION_TYPE_BUY) basketCount = 0;
          if(basketCount < MaxTrades)
@@ -741,7 +626,7 @@ void sendOpen()
                return;
             }
 
-            string comment = version + " " + signalComment + " Min " + IntegerToString(basketNumber);
+            string comment = version + " " + _market.signalComment + " Min " + IntegerToString(basketNumber);
 
             // MT5 CONVERSION: Open position using CTrade
             // MT4: OrderSend(Symbol(), OP_BUY, lotSize, Ask, slippage, 0, 0, comment, MAGIC)
@@ -761,7 +646,7 @@ void sendOpen()
          }
       }
       // Short position signal
-      else if(!nearShortPosition && bearish && buyLots == 0 && openArray[0] > closeArray[0])
+      else if(!_market.nearShortPosition && _market.bearish && buyLots == 0 && openArray[0] > closeArray[0])
       {
          if(basketNumberType != (int)POSITION_TYPE_SELL) basketCount = 0;
          if(basketCount < MaxTrades)
@@ -780,7 +665,7 @@ void sendOpen()
                return;
             }
 
-            string comment = version + " " + signalComment + " Min " + IntegerToString(basketNumber);
+            string comment = version + " " + _market.signalComment + " Min " + IntegerToString(basketNumber);
 
             if(trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, lotSize, bid, 0, 0, comment))
             {
@@ -842,18 +727,18 @@ void sendBack()
       {
          // Aggressive mode: Follow current trend
          int type = -1;
-         if(bullish) type = (int)POSITION_TYPE_BUY;
-         else if(bearish) type = (int)POSITION_TYPE_SELL;
+         if(_market.bullish) type = (int)POSITION_TYPE_BUY;
+         else if(_market.bearish) type = (int)POSITION_TYPE_SELL;
 
-         if(!nearLongPosition && type == (int)POSITION_TYPE_BUY && sellLots == 0)
+         if(!_market.nearLongPosition && type == (int)POSITION_TYPE_BUY && sellLots == 0)
          {
-            string comment = version + " " + signalComment + " Backup " + IntegerToString(basketNumber);
+            string comment = version + " " + _market.signalComment + " Backup " + IntegerToString(basketNumber);
             if(!trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, backupLotSize, ask, 0, 0, comment))
                Print("Error opening aggressive BUY backup: ", trade.ResultRetcodeDescription());
          }
-         else if(!nearShortPosition && type == (int)POSITION_TYPE_SELL && buyLots == 0)
+         else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL && buyLots == 0)
          {
-            string comment = version + " " + signalComment + " Backup " + IntegerToString(basketNumber);
+            string comment = version + " " + _market.signalComment + " Backup " + IntegerToString(basketNumber);
             if(!trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, backupLotSize, bid, 0, 0, comment))
                Print("Error opening aggressive SELL backup: ", trade.ResultRetcodeDescription());
          }
@@ -872,7 +757,7 @@ void sendBack()
             {
                if(freeMargin >= marginRequired)
                {
-                  string comment = version + " Backup " + signalComment + " " + IntegerToString(basketNumber);
+                  string comment = version + " Backup " + _market.signalComment + " " + IntegerToString(basketNumber);
                   if(trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, backupLotSize, ask, 0, 0, comment))
                   {
                      Print("Opened BUY backup on spike: ", comment);
@@ -896,7 +781,7 @@ void sendBack()
             {
                if(freeMargin >= marginRequired)
                {
-                  string comment = version + " Backup " + signalComment + " " + IntegerToString(basketNumber);
+                  string comment = version + " Backup " + _market.signalComment + " " + IntegerToString(basketNumber);
                   if(trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, backupLotSize, bid, 0, 0, comment))
                   {
                      Print("Opened SELL backup on spike: ", comment);
@@ -957,8 +842,8 @@ void managePositions()
    // Safe exit: Close on trend reversal
    else if(SafeExits && totalTrades > 0 &&
            totalProfit + totalLoss > SafeProfit * accountInfo.Balance() &&
-           ((bullish && basketNumberType == (int)POSITION_TYPE_SELL) ||
-            (bearish && basketNumberType == (int)POSITION_TYPE_BUY)))
+           ((_market.bullish && basketNumberType == (int)POSITION_TYPE_SELL) ||
+            (_market.bearish && basketNumberType == (int)POSITION_TYPE_BUY)))
    {
       Print("SafeExit triggered: Trend reversal detected");
       closeAll();

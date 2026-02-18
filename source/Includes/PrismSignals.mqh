@@ -17,7 +17,7 @@ bool IsWithinTradingHours(int currentHour, int startHour, int endHour)
    else if(startHour > endHour)
       return ((currentHour <= endHour && currentHour >= 0) ||
               (currentHour <= 23 && currentHour >= startHour));
-   return true;
+   return false;
 }
 
 //+------------------------------------------------------------------+
@@ -32,7 +32,7 @@ void AnalyzeSignalA(MarketConditions &conditions,
                     double minTrend,
                     double maxTrend,
                     double trendSpace,
-                    double pipPoints)
+                    double pip)
 {
    if(!signalEnabled)
       return;
@@ -49,10 +49,12 @@ void AnalyzeSignalA(MarketConditions &conditions,
    if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 1, closePrice) < 1)
       return;
 
+   conditions.signalComment = "SignalA";
+
    // Check trend strength within acceptable range
-   if(MathAbs(indicators.trendStrength) > minTrend * pipPoints &&
-      MathAbs(indicators.trendStrength) < maxTrend * pipPoints &&
-      MathAbs(closePrice[0] - indicators.MA1Current) > trendSpace * pipPoints)
+   if(MathAbs(indicators.trendStrength) > minTrend * pip &&
+      MathAbs(indicators.trendStrength) < maxTrend * pip &&
+      MathAbs(closePrice[0] - indicators.MA1Current) > trendSpace * pip)
    {
       // Bullish signal
       if(indicators.MA1Current < indicators.MA2Current &&
@@ -61,7 +63,6 @@ void AnalyzeSignalA(MarketConditions &conditions,
       {
          conditions.bullish = true;
          conditions.bearish = false;
-         conditions.signalComment = "SignalA";
       }
       // Bearish signal
       else if(indicators.MA1Current > indicators.MA2Current &&
@@ -70,7 +71,6 @@ void AnalyzeSignalA(MarketConditions &conditions,
       {
          conditions.bearish = true;
          conditions.bullish = false;
-         conditions.signalComment = "SignalA";
       }
    }
 }
@@ -84,7 +84,7 @@ void AnalyzeSignalB(MarketConditions &conditions,
                     int startHour,
                     int endHour,
                     double adxThreshold,
-                    double pipPoints)
+                    double pip)
 {
    if(!signalEnabled)
       return;
@@ -101,6 +101,8 @@ void AnalyzeSignalB(MarketConditions &conditions,
    if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 1, closePrice) < 1)
       return;
 
+   conditions.signalComment = "SignalB";
+
    // Bullish ADX crossover
    if(indicators.MA1Current < indicators.MA2Current &&
       indicators.ADXPlusDI > adxThreshold &&
@@ -109,7 +111,6 @@ void AnalyzeSignalB(MarketConditions &conditions,
    {
       conditions.bullish = true;
       conditions.bearish = false;
-      conditions.signalComment = "SignalB";
    }
    // Bearish ADX crossover
    else if(indicators.MA1Current > indicators.MA2Current &&
@@ -119,7 +120,6 @@ void AnalyzeSignalB(MarketConditions &conditions,
    {
       conditions.bearish = true;
       conditions.bullish = false;
-      conditions.signalComment = "SignalB";
    }
 }
 
@@ -132,7 +132,7 @@ void AnalyzeSignalC(MarketConditions &conditions,
                     int startHour,
                     int endHour,
                     double maxTrend,
-                    double pipPoints)
+                    double pip)
 {
    if(!signalEnabled)
       return;
@@ -144,8 +144,10 @@ void AnalyzeSignalC(MarketConditions &conditions,
    if(!IsWithinTradingHours(currentHour, startHour, endHour))
       return;
 
+   conditions.signalComment = "SignalC";
+
    // Strong trend counter-signal
-   if(MathAbs(indicators.trendStrength) > maxTrend * pipPoints)
+   if(MathAbs(indicators.trendStrength) > maxTrend * pip)
    {
       // Counter bearish on strong uptrend
       if(indicators.MA1Current < indicators.MA2Current &&
@@ -153,7 +155,6 @@ void AnalyzeSignalC(MarketConditions &conditions,
       {
          conditions.bearish = true;
          conditions.bullish = false;
-         conditions.signalComment = "SignalC";
       }
       // Counter bullish on strong downtrend
       else if(indicators.MA1Current > indicators.MA2Current &&
@@ -161,7 +162,6 @@ void AnalyzeSignalC(MarketConditions &conditions,
       {
          conditions.bullish = true;
          conditions.bearish = false;
-         conditions.signalComment = "SignalC";
       }
    }
 }
@@ -177,7 +177,7 @@ void AnalyzeSignalD(MarketConditions &conditions,
                     int endHour,
                     double minTrend,
                     double maxTrend,
-                    double pipPoints,
+                    double pip,
                     bool enableCalendar,
                     int trailCalendarMinutes)
 {
@@ -199,14 +199,16 @@ void AnalyzeSignalD(MarketConditions &conditions,
    if(!calendarCondition)
       return;
 
+   conditions.signalComment = "SignalD";
+
    double closePrice[];
    ArraySetAsSeries(closePrice, true);
    if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 1, closePrice) < 1)
       return;
 
    // Check trend strength within range
-   if(MathAbs(indicators.trendStrength) > minTrend * pipPoints &&
-      MathAbs(indicators.trendStrength) < maxTrend * pipPoints)
+   if(MathAbs(indicators.trendStrength) > minTrend * pip &&
+      MathAbs(indicators.trendStrength) < maxTrend * pip)
    {
       // Bullish momentum signal
       if(indicators.MA1Current > indicators.MA1Previous &&
@@ -216,7 +218,6 @@ void AnalyzeSignalD(MarketConditions &conditions,
       {
          conditions.bullish = true;
          conditions.bearish = false;
-         conditions.signalComment = "SignalD";
       }
       // Bearish momentum signal
       else if(indicators.MA1Current > indicators.MA1Previous &&
@@ -226,7 +227,6 @@ void AnalyzeSignalD(MarketConditions &conditions,
       {
          conditions.bullish = false;
          conditions.bearish = true;
-         conditions.signalComment = "SignalD";
       }
    }
 }
@@ -258,19 +258,19 @@ void AnalyzeTrendSignals(MarketConditions &conditions,
                          int signalDStart,
                          int signalDEnd,
                          // General parameters
-                         double pipPoints,
+                         double pip,
                          bool enableCalendar,
                          int trailCalendarMinutes)
 {
-   // Reset conditions
-   conditions.bullish = false;
-   conditions.bearish = false;
+   // Reset ranging flag only
    conditions.rangingMarket = false;
 
    // Check for ranging market
    if(indicators.ADXMain < adxThreshold)
    {
       conditions.rangingMarket = true;
+      conditions.bullish = false;
+      conditions.bearish = false;
       return;
    }
 
@@ -278,14 +278,14 @@ void AnalyzeTrendSignals(MarketConditions &conditions,
    // Note: Last signal to trigger will override previous signals
 
    AnalyzeSignalA(conditions, indicators, signalAEnabled, signalAStart, signalAEnd,
-                  minTrend, maxTrend, trendSpace, pipPoints);
+                  minTrend, maxTrend, trendSpace, pip);
 
    AnalyzeSignalB(conditions, indicators, signalBEnabled, signalBStart, signalBEnd,
-                  adxThreshold, pipPoints);
+                  adxThreshold, pip);
 
    AnalyzeSignalC(conditions, indicators, signalCEnabled, signalCStart, signalCEnd,
-                  maxTrend, pipPoints);
+                  maxTrend, pip);
 
    AnalyzeSignalD(conditions, indicators, calData, signalDEnabled, signalDStart, signalDEnd,
-                  minTrend, maxTrend, pipPoints, enableCalendar, trailCalendarMinutes);
+                  minTrend, maxTrend, pip, enableCalendar, trailCalendarMinutes);
 }
