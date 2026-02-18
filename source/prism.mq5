@@ -15,6 +15,7 @@
 #include <Trade\OrderInfo.mqh>
 #include <Trade\SymbolInfo.mqh>
 #include <Trade\AccountInfo.mqh>
+#include "Includes/PrismCalendar.mqh"
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Declare CTrade objects for position management   |
@@ -183,22 +184,12 @@ int totalHistory = 100;
 int basketNumber = 0;
 int basketNumberType = -1;
 int basketCount = -1;
-int milestoneType1 = -1;
-int milestoneType2 = -1;
-int milestoneImpact1 = -1;
-int milestoneImpact2 = -1;
 int openType = -1;
 double buyLots = 0;
 double sellLots = 0;
 double pipPoints = 0.00010;
 double DynamicSlippage = 1;
 double BaseLotSize = 0.01;
-double milestoneHours1 = -1;
-double milestoneHours2 = -1;
-double milestoneMinutes1 = -1;
-double milestoneMinutes2 = -1;
-double ffCalenadarEventTime1 = 0;
-double ffCalenadarEventTime2 = 0;
 double marginLevel = 0;
 double spread = 0;
 double trendStrength = 0;
@@ -207,11 +198,8 @@ double dailyGrowth = 0;
 double maxEquity = 0;
 double maxBasketDrawDown = 0;
 string display = "\n";
-string milestoneCurrency1 = "";
-string milestoneCurrency2 = "";
-string milestoneText1 = "";
-string milestoneText2 = "";
 string signalComment = "";
+CalendarData _calendar;
 
 int dailyTargets = 0;
 int totalDays = 0;
@@ -658,8 +646,8 @@ void prepareTrend()
       // Signal D: Combined MA momentum and ADX directional signals with calendar integration
       // Calendar check: Only trade if enough time has passed since last news event
       bool calendarCondition = (!EnableCalendar) ||
-         (EnableCalendar && ffCalenadarEventTime1 > TrailCalendarMinutes &&
-          getCalendarType1() == "since ");
+         (EnableCalendar && _calendar.eventTime1 > TrailCalendarMinutes &&
+          GetCalendarTypeString(_calendar.type1) == "since ");
 
       if(SignalD && ((SignalDStartHour < SignalDEndHour && currentHour >= SignalDStartHour && currentHour < SignalDEndHour) ||
          (SignalDStartHour > SignalDEndHour && ((currentHour <= SignalDEndHour && currentHour >= 0) ||
@@ -815,328 +803,7 @@ void prepareIndicators()
    trendStrength = MA1Cur - MA1Prev;
 }
 
-//+------------------------------------------------------------------+
-//| Structure to hold calendar event data for easy sorting           |
-//+------------------------------------------------------------------+
-struct CalendarEvent
-{
-   datetime eventTime;       // Event time
-   string currency;          // Currency code (USD, EUR, etc.)
-   string eventName;         // Event description
-   ENUM_CALENDAR_EVENT_IMPORTANCE importance;  // Event impact level
-   bool isPast;             // True if event already occurred
 
-   void Clear()
-   {
-      eventTime = 0;
-      currency = "";
-      eventName = "";
-      importance = CALENDAR_IMPORTANCE_NONE;
-      isPast = false;
-   }
-};
-
-//+------------------------------------------------------------------+
-//| Get currency codes relevant to current symbol                    |
-//+------------------------------------------------------------------+
-void getSymbolCurrencies(string& baseCurrency, string& quoteCurrency)
-{
-   // Extract base and quote currencies from symbol name
-   // Most symbols are 6 characters: EURUSD, GBPJPY, etc.
-   string symbolName = _Symbol;
-   int len = StringLen(symbolName);
-
-   if(len >= 6)
-   {
-      baseCurrency = StringSubstr(symbolName, 0, 3);
-      quoteCurrency = StringSubstr(symbolName, 3, 3);
-   }
-   else
-   {
-      // Fallback for unusual symbol names
-      baseCurrency = "";
-      quoteCurrency = "";
-   }
-}
-
-//+------------------------------------------------------------------+
-//| Check if event importance matches our filter settings            |
-//+------------------------------------------------------------------+
-bool isEventImportanceIncluded(ENUM_CALENDAR_EVENT_IMPORTANCE importance)
-{
-   switch(importance)
-   {
-      case CALENDAR_IMPORTANCE_HIGH:
-         return IncludeHigh;
-      case CALENDAR_IMPORTANCE_MODERATE:
-         return IncludeMedium;
-      case CALENDAR_IMPORTANCE_LOW:
-         return IncludeLow;
-      default:
-         return false;
-   }
-}
-
-//+------------------------------------------------------------------+
-//| Check if event name indicates a speech/speaking event            |
-//+------------------------------------------------------------------+
-bool isSpeakingEvent(string eventName)
-{
-   string lowerName = eventName;
-   StringToLower(lowerName);
-
-   // Check for common speech-related keywords
-   if(StringFind(lowerName, "speech") >= 0 ||
-      StringFind(lowerName, "speak") >= 0 ||
-      StringFind(lowerName, "testimony") >= 0 ||
-      StringFind(lowerName, "statement") >= 0 ||
-      StringFind(lowerName, "conference") >= 0 ||
-      StringFind(lowerName, "press") >= 0)
-   {
-      return true;
-   }
-
-   return false;
-}
-
-//+------------------------------------------------------------------+
-//| Get impact level as integer (0=High, 1=Medium, 2=Low, 3=Speaks)  |
-//+------------------------------------------------------------------+
-int getImpactLevel(ENUM_CALENDAR_EVENT_IMPORTANCE importance, bool isSpeech)
-{
-   if(isSpeech && IncludeSpeaks)
-      return 3;  // Speaks
-
-   switch(importance)
-   {
-      case CALENDAR_IMPORTANCE_HIGH:
-         return 0;
-      case CALENDAR_IMPORTANCE_MODERATE:
-         return 1;
-      case CALENDAR_IMPORTANCE_LOW:
-         return 2;
-      default:
-         return -1;
-   }
-}
-
-//+------------------------------------------------------------------+
-//| CALENDAR INTEGRATION - Prepare calendar data using MT5 API       |
-//| Fetches upcoming and recent economic events using native calendar|
-//+------------------------------------------------------------------+
-void prepareCalendar()
-{
-   // If calendar is disabled, set safe defaults
-   if(!EnableCalendar)
-   {
-      ffCalenadarEventTime1 = 99999;  // Large value = no news restriction
-      ffCalenadarEventTime2 = 99999;
-      milestoneCurrency1 = "";
-      milestoneCurrency2 = "";
-      milestoneText1 = "";
-      milestoneText2 = "";
-      milestoneType1 = -1;
-      milestoneType2 = -1;
-      milestoneImpact1 = -1;
-      milestoneImpact2 = -1;
-      milestoneHours1 = -1;
-      milestoneHours2 = -1;
-      milestoneMinutes1 = -1;
-      milestoneMinutes2 = -1;
-      return;
-   }
-
-   // Get currencies for current symbol
-   string baseCurrency, quoteCurrency;
-   getSymbolCurrencies(baseCurrency, quoteCurrency);
-
-   // Time range for calendar search: 24 hours back and 48 hours forward
-   datetime currentTime = TimeCurrent();
-   datetime startTime = currentTime - (24 * 3600);  // 24 hours ago
-   datetime endTime = currentTime + (48 * 3600);    // 48 hours ahead
-
-   // Get calendar values (news events) for the time range
-   MqlCalendarValue values[];
-   int valueCount = CalendarValueHistory(values, startTime, endTime);
-
-   if(valueCount <= 0)
-   {
-      // No events found - set safe defaults
-      ffCalenadarEventTime1 = 99999;
-      ffCalenadarEventTime2 = 99999;
-      milestoneType1 = -1;
-      milestoneType2 = -1;
-      return;
-   }
-
-   // Arrays to store relevant events
-   CalendarEvent upcomingEvents[];
-   CalendarEvent pastEvents[];
-   ArrayResize(upcomingEvents, 0);
-   ArrayResize(pastEvents, 0);
-
-   // Process each calendar value
-   for(int i = 0; i < valueCount; i++)
-   {
-      // Get event details
-      MqlCalendarEvent event;
-      if(!CalendarEventById(values[i].event_id, event))
-         continue;
-
-      // Get country details to extract currency
-      MqlCalendarCountry country;
-      if(!CalendarCountryById(event.country_id, country))
-         continue;
-
-      string eventCurrency = country.currency;
-
-      // Check if event currency matches our symbol
-      if(eventCurrency != baseCurrency && eventCurrency != quoteCurrency)
-         continue;
-
-      // Check if event is a speech
-      bool isSpeech = isSpeakingEvent(event.name);
-
-      // Check if we should include this event based on importance
-      bool includeEvent = false;
-      if(isSpeech && IncludeSpeaks)
-         includeEvent = true;
-      else if(isEventImportanceIncluded(event.importance))
-         includeEvent = true;
-
-      if(!includeEvent)
-         continue;
-
-      // Create calendar event entry
-      CalendarEvent calEvent;
-      calEvent.eventTime = values[i].time;
-      calEvent.currency = eventCurrency;
-      calEvent.eventName = event.name;
-      calEvent.importance = event.importance;
-      calEvent.isPast = (values[i].time < currentTime);
-
-      // Add to appropriate array
-      if(calEvent.isPast)
-      {
-         int size = ArraySize(pastEvents);
-         ArrayResize(pastEvents, size + 1);
-         pastEvents[size] = calEvent;
-      }
-      else
-      {
-         int size = ArraySize(upcomingEvents);
-         ArrayResize(upcomingEvents, size + 1);
-         upcomingEvents[size] = calEvent;
-      }
-   }
-
-   // Find the most recent past event (closest to now)
-   CalendarEvent mostRecentPast;
-   mostRecentPast.Clear();
-   datetime closestPastTime = 0;
-
-   for(int i = 0; i < ArraySize(pastEvents); i++)
-   {
-      if(pastEvents[i].eventTime > closestPastTime)
-      {
-         closestPastTime = pastEvents[i].eventTime;
-         mostRecentPast = pastEvents[i];
-      }
-   }
-
-   // Find the next upcoming event (closest to now in the future)
-   CalendarEvent nextUpcoming;
-   nextUpcoming.Clear();
-   datetime closestFutureTime = D'2099.12.31 23:59:59';  // Far future date
-
-   for(int i = 0; i < ArraySize(upcomingEvents); i++)
-   {
-      if(upcomingEvents[i].eventTime < closestFutureTime)
-      {
-         closestFutureTime = upcomingEvents[i].eventTime;
-         nextUpcoming = upcomingEvents[i];
-      }
-   }
-
-   // Populate milestone data for Event 1 (most recent past event)
-   if(mostRecentPast.eventTime > 0)
-   {
-      milestoneCurrency1 = mostRecentPast.currency;
-      milestoneText1 = mostRecentPast.eventName;
-      milestoneType1 = 0;  // "since"
-
-      bool isSpeech1 = isSpeakingEvent(mostRecentPast.eventName);
-      milestoneImpact1 = getImpactLevel(mostRecentPast.importance, isSpeech1);
-
-      // Calculate time since event (in minutes)
-      long secondsSince = currentTime - mostRecentPast.eventTime;
-      long minutesSince = secondsSince / 60;
-      milestoneHours1 = (double)(minutesSince / 60);
-      milestoneMinutes1 = (double)(minutesSince % 60);
-      ffCalenadarEventTime1 = (double)minutesSince;
-   }
-   else
-   {
-      // No past events found
-      milestoneCurrency1 = "";
-      milestoneText1 = "";
-      milestoneType1 = -1;
-      milestoneImpact1 = -1;
-      milestoneHours1 = -1;
-      milestoneMinutes1 = -1;
-      ffCalenadarEventTime1 = 99999;  // Large value = no restriction
-   }
-
-   // Populate milestone data for Event 2 (next upcoming event)
-   if(nextUpcoming.eventTime > 0 && nextUpcoming.eventTime < closestFutureTime)
-   {
-      milestoneCurrency2 = nextUpcoming.currency;
-      milestoneText2 = nextUpcoming.eventName;
-      milestoneType2 = 1;  // "until"
-
-      bool isSpeech2 = isSpeakingEvent(nextUpcoming.eventName);
-      milestoneImpact2 = getImpactLevel(nextUpcoming.importance, isSpeech2);
-
-      // Calculate time until event (in minutes)
-      long secondsUntil = nextUpcoming.eventTime - currentTime;
-      long minutesUntil = secondsUntil / 60;
-      milestoneHours2 = (double)(minutesUntil / 60);
-      milestoneMinutes2 = (double)(minutesUntil % 60);
-      ffCalenadarEventTime2 = (double)minutesUntil;
-
-      // Use the upcoming event as the primary event for trading decisions
-      // Override Event 1 data to use upcoming event
-      ffCalenadarEventTime1 = (double)minutesUntil;
-      milestoneType1 = 1;  // "until"
-   }
-   else
-   {
-      // No upcoming events found
-      milestoneCurrency2 = "";
-      milestoneText2 = "";
-      milestoneType2 = -1;
-      milestoneImpact2 = -1;
-      milestoneHours2 = -1;
-      milestoneMinutes2 = -1;
-      ffCalenadarEventTime2 = 99999;  // Large value = no restriction
-
-      // If no upcoming event, keep the past event data for Event 1
-      // ffCalenadarEventTime1 already set above
-   }
-}
-
-//+------------------------------------------------------------------+
-//| Helper function to get calendar type for Event 1                 |
-//| Returns "since " or "until " based on event timing               |
-//+------------------------------------------------------------------+
-string getCalendarType1()
-{
-   if(milestoneType1 == 0)
-      return "since ";
-   else if(milestoneType1 == 1)
-      return "until ";
-   return "";
-}
 
 //+------------------------------------------------------------------+
 //| Main preparation function - calls all prep functions in sequence |
@@ -1144,7 +811,7 @@ string getCalendarType1()
 void prepare()
 {
    prepareIndicators();  // Get indicator values
-   prepareCalendar();    // Fetch economic calendar events using MT5 API
+   PrepareCalendar(_calendar, EnableCalendar, IncludeHigh, IncludeMedium, IncludeLow, IncludeSpeaks);  // Fetch economic calendar events using MT5 API
    prepareTrend();       // Analyze trend and generate signals
    setPipPoint();        // Set pip point based on digits
    prepareHistory();     // Calculate historical profit
@@ -1258,13 +925,13 @@ void openPosition()
    if(EnableCalendar)
    {
       // Calendar check - only trade at appropriate times relative to news
-      string calType = getCalendarType1();
+      string calType = GetCalendarTypeString(_calendar.type1);
 
-      if(ffCalenadarEventTime1 > TrailCalendarMinutes && calType == "since ")
+      if(_calendar.eventTime1 > TrailCalendarMinutes && calType == "since ")
          sendOpen();  // Enough time passed since news
-      else if(ffCalenadarEventTime1 > LeadCalendarMinutes && calType == "until ")
+      else if(_calendar.eventTime1 > LeadCalendarMinutes && calType == "until ")
          sendOpen();  // Enough time before upcoming news
-      else if(ffCalenadarEventTime1 >= 99999)
+      else if(_calendar.eventTime1 >= 99999)
          sendOpen();  // No news scheduled
    }
    else
@@ -1370,13 +1037,13 @@ void backSystem()
    if(EnableCalendar)
    {
       // Calendar check for backup system
-      string calType = getCalendarType1();
+      string calType = GetCalendarTypeString(_calendar.type1);
 
-      if(ffCalenadarEventTime1 > TrailCalendarMinutes && calType == "since ")
+      if(_calendar.eventTime1 > TrailCalendarMinutes && calType == "since ")
          sendBack();
-      else if(ffCalenadarEventTime1 > LeadCalendarMinutes && calType == "until ")
+      else if(_calendar.eventTime1 > LeadCalendarMinutes && calType == "until ")
          sendBack();
-      else if(ffCalenadarEventTime1 >= 99999)
+      else if(_calendar.eventTime1 >= 99999)
          sendBack();
    }
    else
@@ -1416,8 +1083,8 @@ void managePositions()
    }
    // Calendar-based exit: Close positions with profit if news approaching
    else if(EnableCalendar && totalTrades > 0 && totalProfit + totalLoss > 0 &&
-           ffCalenadarEventTime1 < LeadCalendarMinutes &&
-           getCalendarType1() == "until " && ffCalenadarEventTime1 > 0)
+           _calendar.eventTime1 < LeadCalendarMinutes &&
+           GetCalendarTypeString(_calendar.type1) == "until " && _calendar.eventTime1 > 0)
    {
       Print("Calendar exit triggered: Upcoming news event");
       closeAll();
@@ -1538,46 +1205,46 @@ void update()
 
    if(EnableCalendar)
    {
-      string calType = getCalendarType1();
+      string calType = GetCalendarTypeString(_calendar.type1);
       string impactText = "";
 
       // Get impact level text
-      if(milestoneImpact1 == 0) impactText = "High";
-      else if(milestoneImpact1 == 1) impactText = "Medium";
-      else if(milestoneImpact1 == 2) impactText = "Low";
-      else if(milestoneImpact1 == 3) impactText = "Speaks";
+      if(_calendar.impact1 == 0) impactText = "High";
+      else if(_calendar.impact1 == 1) impactText = "Medium";
+      else if(_calendar.impact1 == 2) impactText = "Low";
+      else if(_calendar.impact1 == 3) impactText = "Speaks";
       else impactText = "Unknown";
 
       // Build calendar display text
-      if(ffCalenadarEventTime1 >= 99999)
+      if(_calendar.eventTime1 >= 99999)
       {
          calendarText = "Calendar: No relevant news events";
       }
       else if(calType == "until ")
       {
          // Upcoming event
-         long hours = (long)milestoneHours1;
-         long minutes = (long)milestoneMinutes1;
+         long hours = (long)_calendar.hours1;
+         long minutes = (long)_calendar.minutes1;
 
-         if(ffCalenadarEventTime1 < LeadCalendarMinutes)
+         if(_calendar.eventTime1 < LeadCalendarMinutes)
             calendarText = StringFormat("⚠ NEWS IN %dh %dm - %s [%s] %s - WAITING/EXIT",
-                                       hours, minutes, milestoneCurrency1, impactText, milestoneText1);
+                                       hours, minutes, _calendar.currency1, impactText, _calendar.text1);
          else
             calendarText = StringFormat("Calendar: %dh %dm until %s [%s] %s",
-                                       hours, minutes, milestoneCurrency1, impactText, milestoneText1);
+                                       hours, minutes, _calendar.currency1, impactText, _calendar.text1);
       }
       else if(calType == "since ")
       {
          // Past event
-         long hours = (long)milestoneHours1;
-         long minutes = (long)milestoneMinutes1;
+         long hours = (long)_calendar.hours1;
+         long minutes = (long)_calendar.minutes1;
 
-         if(ffCalenadarEventTime1 < TrailCalendarMinutes)
+         if(_calendar.eventTime1 < TrailCalendarMinutes)
             calendarText = StringFormat("⏳ %dh %dm since %s [%s] %s - CAUTION",
-                                       hours, minutes, milestoneCurrency1, impactText, milestoneText1);
+                                       hours, minutes, _calendar.currency1, impactText, _calendar.text1);
          else
             calendarText = StringFormat("Calendar: %dh %dm since %s [%s] - Trading normal",
-                                       hours, minutes, milestoneCurrency1, impactText);
+                                       hours, minutes, _calendar.currency1, impactText);
       }
       else
       {
