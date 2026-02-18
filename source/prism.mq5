@@ -1,6 +1,6 @@
 ﻿//+------------------------------------------------------------------+
 //|                                              prism.mq5  |
-//|                                  Ported from MT4 version by AI   |
+//|                                  Ported from MT4 version by AI    |
 //|                         http://codebase.mql4.com/9050            |
 //+------------------------------------------------------------------+
 #property copyright "Rudi & Claude"
@@ -15,6 +15,7 @@
 #include <Trade\OrderInfo.mqh>
 #include <Trade\SymbolInfo.mqh>
 #include <Trade\AccountInfo.mqh>
+#include "Includes/PrismTypes.mqh"
 #include "Includes/PrismCalendar.mqh"
 #include "Includes/PrismIndicators.mqh"
 #include "Includes/PrismSignals.mqh"
@@ -22,15 +23,15 @@
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Declare CTrade objects for position management   |
 //+------------------------------------------------------------------+
-CTrade trade;
-CPositionInfo positionInfo;
-COrderInfo orderInfo;
-CSymbolInfo symbolInfo;
-CAccountInfo accountInfo;
+CTrade _trade;
+CPositionInfo _positionInfo;
+COrderInfo _orderInfo;
+CSymbolInfo _symbolInfo;
+CAccountInfo _accountInfo;
 
 //--- EA Version and Magic Number
-string version = "Prism 0.1";
-int MAGIC = 20260220;
+string _version = "Prism 0.1";
+int _MAGIC = 20260220;
 
 //+------------------------------------------------------------------+
 //|                    INPUT PARAMETERS                              |
@@ -62,7 +63,7 @@ input group "════════ RISK MANAGEMENT ════════";
 input double MarginUsage = 0.3;           // Percentage of balance allocated to regular trades (10% = conservative)
 input double BackupMargin = 0.1;         // Percentage of balance allocated to backup trades (1% = very conservative)
 input double MinMarginLevel = 300;        // Minimum margin level required to open new positions (300% = safe)
-input double MinLots = 0.03;              // Minimum lot size for any trade
+input double MinLots = 0.03;              // Minimum lot size for any _trade
 input bool EnableStop = true;            // Enable long-term stop loss based on historical profits
 input double RelativeStop = 0.3;          // Stop loss as percentage of historical profit (30% drawdown limit)
 input double StopGrowth = 0.05;          // Historical profit threshold to activate stop loss (0.5% of balance)
@@ -75,8 +76,8 @@ input int MaxTrades = 8;                  // Maximum number of positions per bas
 input double TradeSpace = 7.5;            // Minimum distance between trades in ATR units (prevents clustering)
 input int SleepSeconds = 18000;           // Minimum seconds between any trades (14400 = 4 hours)
 input bool TradeFriday = true;           // Allow trading on Fridays (typically avoided due to weekend risk)
-input bool SafeSpread = true;             // Only trade when spread is below MaxSpread threshold
-input double MaxSpread = 2;               // Maximum spread in pips allowed for trade execution
+input bool SafeSpread = true;             // Only _trade when _spread is below MaxSpread threshold
+input double MaxSpread = 2;               // Maximum _spread in pips allowed for _trade execution
 
 //═══════════════════════════════════════════════════════════════════
 //  PROFIT TARGETS
@@ -106,7 +107,7 @@ input bool AllowHedge = true;            // Allow backup trades in opposite dire
 input group "════════ SIGNAL A: TREND FOLLOWING ════════";
 input bool SignalA = false;                // Enable Signal A (MA crossover with trend strength filter)
 input int SignalAStartHour = 0;           // Trading start hour for Signal A (24-hour format)
-input int SignalAEndHour = 23;            // Trading end hour for Signal A (23 = trade until 11 PM)
+input int SignalAEndHour = 23;            // Trading end hour for Signal A (23 = _trade until 11 PM)
 input double TrendSpace = 15;             // Minimum distance from MA to confirm trend (in pips)
 input double MinTrend = 1;                // Minimum trend strength in pips (filters weak trends)
 input double MaxTrend = 5;                // Maximum trend strength in pips (filters over-extended moves)
@@ -164,33 +165,31 @@ input group "════════ HISTORY & STATISTICS ═══════
 input int QueryHistory = 2;              // Number of historical trades to analyze for basket calculations
 
 //--- Global Variables
-double slippage, marginRequirement, lotSize, backupLotSize, totalHistoryProfit, totalProfit, totalLoss, symbolHistory;
-int symbolDigits, totalTrades, totalBackupTrades;
-bool incrementLimits = false;
-int MaxStartTrades = 1;
-datetime lastTradeTime = 0;         // MT5: Changed from int to datetime
-int totalHistory = 100;
-int basketNumber = 0;
-int basketNumberType = -1;
-int basketCount = -1;
-int openType = -1;
-double buyLots = 0;
-double sellLots = 0;
-double pipPoints = 0.00010;
-double DynamicSlippage = 1;
-double BaseLotSize = 0.01;
-double marginLevel = 0;
-double spread = 0;
-double longHistortProfit = 0;
-double dailyGrowth = 0;
-double maxEquity = 0;
-double maxBasketDrawDown = 0;
-string display = "\n";
+double _slippage, _marginRequirement, _lotSize, _backupLotSize, _totalHistoryProfit, _symbolHistory;
+int _symbolDigits;
+bool _incrementLimits = false;
+int _maxStartTrades = 1;
+datetime _lastTradeTime = 0;         // MT5: Changed from int to datetime
+int _totalHistory = 100;
+int _basketNumber = 0;
+int _basketNumberType = -1;
+int _basketCount = -1;
+double _pipPoints = 0.00010;
+double _dynamicSlippage = 1;
+double _baseLotSize = 0.01;
+double _marginLevel = 0;
+double _spread = 0;
+double _longHistortProfit = 0;
+double _dailyGrowth = 0;
+double _maxEquity = 0;
+double _maxBasketDrawDown = 0;
+string _display = "\n";
 CalendarData _calendar;
+PositionStats _stats;
 
-int dailyTargets = 0;
-int totalDays = 0;
-int turn = 0;
+int _dailyTargets = 0;
+int _totalDays = 0;
+int _turn = 0;
 
 IndicatorHandles _handles;
 IndicatorValues _indicators;
@@ -199,10 +198,10 @@ MarketConditions _market;
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Price arrays for bar data access                 |
 //+------------------------------------------------------------------+
-double closeArray[];
-double openArray[];
-double highArray[];
-double lowArray[];
+double _closeArray[];
+double _openArray[];
+double _highArray[];
+double _lowArray[];
 
 //+------------------------------------------------------------------+
 //| Expert initialization function (MT5: changed from init())        |
@@ -210,14 +209,14 @@ double lowArray[];
 int OnInit()
 {
    // Set symbol information
-   symbolInfo.Name(_Symbol);
-   symbolInfo.RefreshRates();
+   _symbolInfo.Name(_Symbol);
+   _symbolInfo.RefreshRates();
 
-   // MT5 CONVERSION: Set trade parameters using CTrade class
-   trade.SetExpertMagicNumber(MAGIC);
-   trade.SetDeviationInPoints((int)slippage);
-   trade.SetTypeFilling(ORDER_FILLING_FOK);  // Fill or Kill order type
-   trade.SetAsyncMode(false);                // Synchronous execution
+   // MT5 CONVERSION: Set _trade parameters using CTrade class
+   _trade.SetExpertMagicNumber(_MAGIC);
+   _trade.SetDeviationInPoints((int)_slippage);
+   _trade.SetTypeFilling(ORDER_FILLING_FOK);  // Fill or Kill order type
+   _trade.SetAsyncMode(false);                // Synchronous execution
 
    // Initialize indicator handles
    if(!InitializeIndicators(_handles, ATRPeriod, ADXPeriod, MA1Period, MA2Period, 0))
@@ -225,8 +224,8 @@ int OnInit()
 
    // CALENDAR INTEGRATION - MT5 Native Implementation
    // =================================================
-   // The MT4 version used a custom indicator (milestone_calendar) that parsed ForexFactory feeds.
-   // MT5 version uses native economic calendar API:
+   // The MT4 _version used a custom indicator (milestone_calendar) that parsed ForexFactory feeds.
+   // MT5 _version uses native economic calendar API:
    //    - CalendarValueHistory() to get scheduled news events
    //    - CalendarEventById() to get event details
    //    - CalendarCountryById() to filter by country/currency
@@ -247,10 +246,10 @@ int OnInit()
    }
 
    // MT5 CONVERSION: Set price arrays as series (index 0 = most recent)
-   ArraySetAsSeries(closeArray, true);
-   ArraySetAsSeries(openArray, true);
-   ArraySetAsSeries(highArray, true);
-   ArraySetAsSeries(lowArray, true);
+   ArraySetAsSeries(_closeArray, true);
+   ArraySetAsSeries(_openArray, true);
+   ArraySetAsSeries(_highArray, true);
+   ArraySetAsSeries(_lowArray, true);
 
    // Initial preparation
    prepare();
@@ -316,63 +315,63 @@ double marginCalculate(string symbol, double volume)
 void calculateLotSize()
 {
    // MT5 CONVERSION: Get current Ask and Bid using SymbolInfoDouble
-   symbolInfo.RefreshRates();
-   double ask = symbolInfo.Ask();
-   double bid = symbolInfo.Bid();
+   _symbolInfo.RefreshRates();
+   double ask = _symbolInfo.Ask();
+   double bid = _symbolInfo.Bid();
 
-   // Calculate spread in pips
-   spread = (ask - bid) / pipPoints;
+   // Calculate _spread in pips
+   _spread = (ask - bid) / _pipPoints;
 
-   // Dynamic slippage based on ATR
-   slippage = NormalizeDouble((_indicators.ATR / pipPoints) * DynamicSlippage, 1);
+   // Dynamic _slippage based on ATR
+   _slippage = NormalizeDouble((_indicators.ATR / _pipPoints) * _dynamicSlippage, 1);
 
    // Calculate margin requirement for base lot size
-   marginRequirement = marginCalculate(_Symbol, BaseLotSize);
+   _marginRequirement = marginCalculate(_Symbol, _baseLotSize);
 
-   if(marginRequirement <= 0)
+   if(_marginRequirement <= 0)
    {
       Print("Warning: Invalid margin requirement, using minimum lot size");
-      lotSize = MinLots;
-      backupLotSize = MinLots;
+      _lotSize = MinLots;
+      _backupLotSize = MinLots;
       return;
    }
 
    // MT5 CONVERSION: Use AccountInfo class methods instead of Account*() functions
-   double accountBalance = accountInfo.Balance();
+   double accountBalance = _accountInfo.Balance();
 
    // Calculate lot sizes based on margin usage percentage
-   lotSize = NormalizeDouble((accountBalance * MarginUsage / marginRequirement) * BaseLotSize, 2);
-   backupLotSize = NormalizeDouble((accountBalance * BackupMargin / marginRequirement) * BaseLotSize, 2);
+   _lotSize = NormalizeDouble((accountBalance * MarginUsage / _marginRequirement) * _baseLotSize, 2);
+   _backupLotSize = NormalizeDouble((accountBalance * BackupMargin / _marginRequirement) * _baseLotSize, 2);
 
    // Ensure minimum lot sizes
-   if(lotSize < MinLots) lotSize = MinLots;
-   if(backupLotSize < MinLots) backupLotSize = MinLots;
+   if(_lotSize < MinLots) _lotSize = MinLots;
+   if(_backupLotSize < MinLots) _backupLotSize = MinLots;
 
    // Calculate margin level
-   double accountMargin = accountInfo.Margin();
+   double accountMargin = _accountInfo.Margin();
    if(accountMargin > 0)
-      marginLevel = accountInfo.Equity() / accountMargin * 100;
-   if(totalTrades == 0) marginLevel = 0;
+      _marginLevel = _accountInfo.Equity() / accountMargin * 100;
+   if(_stats.totalTrades == 0) _marginLevel = 0;
 
    // Daily refresh logic
    datetime currentTime = TimeCurrent();
    if(MathMod((long)currentTime, 3600 * RefreshHours) <= 10)
    {
-      if(turn == 0) totalDays = totalDays + 1;
-      turn = 1;
+      if(_turn == 0) _totalDays = _totalDays + 1;
+      _turn = 1;
 
       // Check if daily growth target reached
-      if(dailyGrowth / accountBalance > DailyGrowth)
+      if(_dailyGrowth / accountBalance > DailyGrowth)
       {
-         Print("Daily growth target reached: ", DoubleToString(dailyGrowth / accountBalance * 100, 2), "%");
-         dailyTargets = dailyTargets + 1;
-         turn = 1;
+         Print("Daily growth target reached: ", DoubleToString(_dailyGrowth / accountBalance * 100, 2), "%");
+         _dailyTargets = _dailyTargets + 1;
+         _turn = 1;
       }
 
-      dailyGrowth = 0;
+      _dailyGrowth = 0;
 
       // Close all positions at daily reset if in profit
-      if(totalProfit + totalLoss > 0)
+      if(_stats.totalProfit + _stats.totalLoss > 0)
       {
          Print("Daily reset: Closing all profitable positions");
          closeAll();
@@ -380,20 +379,20 @@ void calculateLotSize()
    }
    else
    {
-      turn = 0;
+      _turn = 0;
    }
 
    // Safe growth check - close all if daily target reached
    if(SafeGrowth)
-      if(dailyGrowth / accountBalance > DailyGrowth)
+      if(_dailyGrowth / accountBalance > DailyGrowth)
       {
          Print("SafeGrowth triggered: Daily target reached");
          closeAll();
       }
 
    // Track maximum equity
-   if(accountBalance > maxEquity)
-      maxEquity = accountBalance;
+   if(accountBalance > _maxEquity)
+      _maxEquity = accountBalance;
 }
 
 //+------------------------------------------------------------------+
@@ -402,14 +401,14 @@ void calculateLotSize()
 void setPipPoint()
 {
    // MT5 CONVERSION: Use SymbolInfoInteger instead of MarketInfo
-   symbolDigits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
+   _symbolDigits = (int)SymbolInfoInteger(_Symbol, SYMBOL_DIGITS);
 
-   if(symbolDigits == 3 || symbolDigits == 2)
-      pipPoints = 0.010;
-   else if(symbolDigits == 5 || symbolDigits == 4)
-      pipPoints = 0.00010;
+   if(_symbolDigits == 3 || _symbolDigits == 2)
+      _pipPoints = 0.010;
+   else if(_symbolDigits == 5 || _symbolDigits == 4)
+      _pipPoints = 0.00010;
    else
-      pipPoints = 0.00010;  // Default for other digit counts
+      _pipPoints = 0.00010;  // Default for other digit counts
 }
 
 //+------------------------------------------------------------------+
@@ -417,37 +416,37 @@ void setPipPoint()
 //+------------------------------------------------------------------+
 void closeAll(string type = "none")
 {
-   if(totalTrades == 1)
-      lastTradeTime = TimeCurrent();
+   if(_stats.totalTrades == 1)
+      _lastTradeTime = TimeCurrent();
 
    // MT5 CONVERSION: Iterate through positions using position-based model
    // In MT4: OrdersTotal() returns pending and open orders
    // In MT5: PositionsTotal() returns only open positions
    for(int i = PositionsTotal() - 1; i >= 0; i--)
    {
-      if(!positionInfo.SelectByIndex(i)) continue;
+      if(!_positionInfo.SelectByIndex(i)) continue;
 
       // Check if position belongs to this EA and symbol
-      if(positionInfo.Symbol() == _Symbol && positionInfo.Magic() == MAGIC)
+      if(_positionInfo.Symbol() == _Symbol && _positionInfo.Magic() == _MAGIC)
       {
-         symbolInfo.RefreshRates();
+         _symbolInfo.RefreshRates();
 
          // Check close conditions based on type parameter
-         // MT5 CONVERSION: OrderStopLoss() becomes positionInfo.StopLoss()
-         // MT5 CONVERSION: OrderProfit() becomes positionInfo.Profit()
-         if((positionInfo.StopLoss() == 0 && positionInfo.Profit() > 0 && type == "profits") || type == "none")
+         // MT5 CONVERSION: OrderStopLoss() becomes _positionInfo.StopLoss()
+         // MT5 CONVERSION: OrderProfit() becomes _positionInfo.Profit()
+         if((_positionInfo.StopLoss() == 0 && _positionInfo.Profit() > 0 && type == "profits") || type == "none")
          {
-            // MT5 CONVERSION: OrderClose() replaced with trade.PositionClose()
-            // MT4: OrderClose(OrderTicket(), OrderLots(), Bid/Ask, slippage)
-            // MT5: trade.PositionClose(positionInfo.Ticket())
-            if(trade.PositionClose(positionInfo.Ticket()))
+            // MT5 CONVERSION: OrderClose() replaced with _trade.PositionClose()
+            // MT4: OrderClose(OrderTicket(), OrderLots(), Bid/Ask, _slippage)
+            // MT5: _trade.PositionClose(_positionInfo.Ticket())
+            if(_trade.PositionClose(_positionInfo.Ticket()))
             {
-               dailyGrowth = dailyGrowth + positionInfo.Profit();
-               lastTradeTime = TimeCurrent();
+               _dailyGrowth = _dailyGrowth + _positionInfo.Profit();
+               _lastTradeTime = TimeCurrent();
             }
             else
             {
-               Print("Error closing position ", positionInfo.Ticket(), ": ", trade.ResultRetcodeDescription());
+               Print("Error closing position ", _positionInfo.Ticket(), ": ", _trade.ResultRetcodeDescription());
             }
          }
       }
@@ -459,8 +458,8 @@ void closeAll(string type = "none")
 //+------------------------------------------------------------------+
 void prepareHistory()
 {
-   symbolHistory = 0;
-   totalHistoryProfit = 0;
+   _symbolHistory = 0;
+   _totalHistoryProfit = 0;
 
    // MT5 CONVERSION: Use HistorySelect to load history
    // MT4: OrdersHistoryTotal() returns total orders in history
@@ -478,7 +477,7 @@ void prepareHistory()
    // MT5 CONVERSION: Iterate through history deals instead of orders
    // MT4: OrderSelect(iPos, SELECT_BY_POS, MODE_HISTORY)
    // MT5: HistoryDealGetTicket(i), then HistoryDealGet*() functions
-   for(int i = totalDeals - 1; i >= 0 && counted < totalHistory; i--)
+   for(int i = totalDeals - 1; i >= 0 && counted < _totalHistory; i--)
    {
       ulong ticket = HistoryDealGetTicket(i);
       if(ticket == 0) continue;
@@ -486,13 +485,13 @@ void prepareHistory()
       // Check if deal belongs to this symbol and EA
       // MT5 CONVERSION: Uses HistoryDealGet*() instead of Order*() functions
       if(HistoryDealGetString(ticket, DEAL_SYMBOL) == _Symbol &&
-         HistoryDealGetInteger(ticket, DEAL_MAGIC) == MAGIC &&
+         HistoryDealGetInteger(ticket, DEAL_MAGIC) == _MAGIC &&
          HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)  // Exit deals only
       {
-         if(symbolHistory >= QueryHistoryDouble) break;
+         if(_symbolHistory >= QueryHistoryDouble) break;
 
-         totalHistoryProfit += HistoryDealGetDouble(ticket, DEAL_PROFIT);
-         symbolHistory = symbolHistory + 1;
+         _totalHistoryProfit += HistoryDealGetDouble(ticket, DEAL_PROFIT);
+         _symbolHistory = _symbolHistory + 1;
          counted++;
       }
    }
@@ -506,60 +505,54 @@ void preparePositions()
 {
    _market.nearLongPosition = false;
    _market.nearShortPosition = false;
-   totalTrades = 0;
-   totalBackupTrades = 0;
-   totalProfit = 0;
-   totalLoss = 0;
-   buyLots = 0;
-   sellLots = 0;
-   openType = -1;
+   _stats.Reset();
 
-   symbolInfo.RefreshRates();
-   double ask = symbolInfo.Ask();
-   double bid = symbolInfo.Bid();
+   _symbolInfo.RefreshRates();
+   double ask = _symbolInfo.Ask();
+   double bid = _symbolInfo.Bid();
 
    // MT5 CONVERSION: Iterate through positions instead of orders
    // MT4: for(int i = 0; i < OrdersTotal(); i++) OrderSelect(i, SELECT_BY_POS, MODE_TRADES)
-   // MT5: for(int i = 0; i < PositionsTotal(); i++) positionInfo.SelectByIndex(i)
+   // MT5: for(int i = 0; i < PositionsTotal(); i++) _positionInfo.SelectByIndex(i)
    for(int i = 0; i < PositionsTotal(); i++)
    {
-      if(!positionInfo.SelectByIndex(i)) continue;
+      if(!_positionInfo.SelectByIndex(i)) continue;
 
-      if(positionInfo.Symbol() == _Symbol && positionInfo.Magic() == MAGIC)
+      if(_positionInfo.Symbol() == _Symbol && _positionInfo.Magic() == _MAGIC)
       {
-         totalTrades++;
+         _stats.totalTrades++;
 
          // Check for backup trades
-         if(StringFind(positionInfo.Comment(), "Backup", 0) > -1)
-            totalBackupTrades++;
+         if(StringFind(_positionInfo.Comment(), "Backup", 0) > -1)
+            _stats.totalBackupTrades++;
 
-         if(positionInfo.StopLoss() == 0)
+         if(_positionInfo.StopLoss() == 0)
          {
             // MT5 CONVERSION: Check position type
             // MT4: OrderType() == OP_BUY/OP_SELL
-            // MT5: positionInfo.PositionType() == POSITION_TYPE_BUY/POSITION_TYPE_SELL
-            if(positionInfo.PositionType() == POSITION_TYPE_BUY &&
-               MathAbs(positionInfo.PriceOpen() - ask) < _indicators.ATR * TradeSpace)
+            // MT5: _positionInfo.PositionType() == POSITION_TYPE_BUY/POSITION_TYPE_SELL
+            if(_positionInfo.PositionType() == POSITION_TYPE_BUY &&
+               MathAbs(_positionInfo.PriceOpen() - ask) < _indicators.ATR * TradeSpace)
                _market.nearLongPosition = true;
-            else if(positionInfo.PositionType() == POSITION_TYPE_SELL &&
-                    MathAbs(positionInfo.PriceOpen() - bid) < _indicators.ATR * TradeSpace)
+            else if(_positionInfo.PositionType() == POSITION_TYPE_SELL &&
+                    MathAbs(_positionInfo.PriceOpen() - bid) < _indicators.ATR * TradeSpace)
                _market.nearShortPosition = true;
 
-            if(positionInfo.PositionType() == POSITION_TYPE_BUY)
+            if(_positionInfo.PositionType() == POSITION_TYPE_BUY)
             {
-               buyLots += positionInfo.Volume();
-               openType = (int)POSITION_TYPE_BUY;
+               _stats.buyLots += _positionInfo.Volume();
+               _stats.openType = (int)POSITION_TYPE_BUY;
             }
-            else if(positionInfo.PositionType() == POSITION_TYPE_SELL)
+            else if(_positionInfo.PositionType() == POSITION_TYPE_SELL)
             {
-               sellLots += positionInfo.Volume();
-               openType = (int)POSITION_TYPE_SELL;
+               _stats.sellLots += _positionInfo.Volume();
+               _stats.openType = (int)POSITION_TYPE_SELL;
             }
 
-            if(positionInfo.Profit() > 0)
-               totalProfit += positionInfo.Profit();
+            if(_positionInfo.Profit() > 0)
+               _stats.totalProfit += _positionInfo.Profit();
             else
-               totalLoss += positionInfo.Profit();
+               _stats.totalLoss += _positionInfo.Profit();
          }
       }
    }
@@ -579,12 +572,12 @@ void prepare()
                        SignalB, SignalBStartHour, SignalBEndHour, ADXMain,
                        SignalC, SignalCStartHour, SignalCEndHour,
                        SignalD, SignalDStartHour, SignalDEndHour,
-                       pipPoints, EnableCalendar, TrailCalendarMinutes);  // Analyze trend and generate signals
+                       _pipPoints, EnableCalendar, TrailCalendarMinutes);  // Analyze trend and generate signals
    setPipPoint();        // Set pip point based on digits
    prepareHistory();     // Calculate historical profit
    preparePositions();   // Count and analyze open positions
    calculateLotSize();   // Calculate lot sizes and check daily growth
-   update();             // Update display on chart
+   update();             // Update _display on chart
 }
 
 //+------------------------------------------------------------------+
@@ -592,29 +585,29 @@ void prepare()
 //+------------------------------------------------------------------+
 void sendOpen()
 {
-   symbolInfo.RefreshRates();
-   double ask = symbolInfo.Ask();
-   double bid = symbolInfo.Bid();
+   _symbolInfo.RefreshRates();
+   double ask = _symbolInfo.Ask();
+   double bid = _symbolInfo.Bid();
 
    // Get current bar open/close for direction check
-   if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 1, closeArray) < 1) return;
-   if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 1, openArray) < 1) return;
+   if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 1, _closeArray) < 1) return;
+   if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 1, _openArray) < 1) return;
 
-   // Check spread condition
-   if((SafeSpread && spread < MaxSpread) || !SafeSpread)
+   // Check _spread condition
+   if((SafeSpread && _spread < MaxSpread) || !SafeSpread)
    {
       // Long position signal
-      if(!_market.nearLongPosition && _market.bullish && sellLots == 0 && openArray[0] < closeArray[0])
+      if(!_market.nearLongPosition && _market.bullish && _stats.sellLots == 0 && _openArray[0] < _closeArray[0])
       {
-         if(basketNumberType != (int)POSITION_TYPE_BUY) basketCount = 0;
-         if(basketCount < MaxTrades)
+         if(_basketNumberType != (int)POSITION_TYPE_BUY) _basketCount = 0;
+         if(_basketCount < MaxTrades)
          {
             // MT5 CONVERSION: Check free margin
-            // MT4: AccountFreeMarginCheck(Symbol(), OP_BUY, lotSize)
+            // MT4: AccountFreeMarginCheck(Symbol(), OP_BUY, _lotSize)
             // MT5: OrderCalcMargin() then compare with FreeMargin
-            double freeMargin = accountInfo.FreeMargin();
+            double freeMargin = _accountInfo.FreeMargin();
             double marginRequired = 0;
-            if(!OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, lotSize, ask, marginRequired))
+            if(!OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, _lotSize, ask, marginRequired))
             {
                Print("Error calculating margin for BUY: ", GetLastError());
                return;
@@ -626,34 +619,34 @@ void sendOpen()
                return;
             }
 
-            string comment = version + " " + _market.signalComment + " Min " + IntegerToString(basketNumber);
+            string comment = _version + " " + _market.signalComment + " Min " + IntegerToString(_basketNumber);
 
             // MT5 CONVERSION: Open position using CTrade
-            // MT4: OrderSend(Symbol(), OP_BUY, lotSize, Ask, slippage, 0, 0, comment, MAGIC)
-            // MT5: trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, lotSize, ask, 0, 0, comment)
-            if(trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, lotSize, ask, 0, 0, comment))
+            // MT4: OrderSend(Symbol(), OP_BUY, _lotSize, Ask, _slippage, 0, 0, comment, _MAGIC)
+            // MT5: _trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _lotSize, ask, 0, 0, comment)
+            if(_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _lotSize, ask, 0, 0, comment))
             {
                Print("Opened BUY position: ", comment);
-               lastTradeTime = TimeCurrent();
-               basketCount++;
-               if(basketNumberType != (int)POSITION_TYPE_BUY) basketNumber++;
-               openType = (int)POSITION_TYPE_BUY;
+               _lastTradeTime = TimeCurrent();
+               _basketCount++;
+               if(_basketNumberType != (int)POSITION_TYPE_BUY) _basketNumber++;
+               _stats.openType = (int)POSITION_TYPE_BUY;
             }
             else
             {
-               Print("Error opening BUY position: ", trade.ResultRetcodeDescription());
+               Print("Error opening BUY position: ", _trade.ResultRetcodeDescription());
             }
          }
       }
       // Short position signal
-      else if(!_market.nearShortPosition && _market.bearish && buyLots == 0 && openArray[0] > closeArray[0])
+      else if(!_market.nearShortPosition && _market.bearish && _stats.buyLots == 0 && _openArray[0] > _closeArray[0])
       {
-         if(basketNumberType != (int)POSITION_TYPE_SELL) basketCount = 0;
-         if(basketCount < MaxTrades)
+         if(_basketNumberType != (int)POSITION_TYPE_SELL) _basketCount = 0;
+         if(_basketCount < MaxTrades)
          {
-            double freeMargin = accountInfo.FreeMargin();
+            double freeMargin = _accountInfo.FreeMargin();
             double marginRequired = 0;
-            if(!OrderCalcMargin(ORDER_TYPE_SELL, _Symbol, lotSize, bid, marginRequired))
+            if(!OrderCalcMargin(ORDER_TYPE_SELL, _Symbol, _lotSize, bid, marginRequired))
             {
                Print("Error calculating margin for SELL: ", GetLastError());
                return;
@@ -665,19 +658,19 @@ void sendOpen()
                return;
             }
 
-            string comment = version + " " + _market.signalComment + " Min " + IntegerToString(basketNumber);
+            string comment = _version + " " + _market.signalComment + " Min " + IntegerToString(_basketNumber);
 
-            if(trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, lotSize, bid, 0, 0, comment))
+            if(_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _lotSize, bid, 0, 0, comment))
             {
                Print("Opened SELL position: ", comment);
-               lastTradeTime = TimeCurrent();
-               basketCount++;
-               if(basketNumberType != (int)POSITION_TYPE_SELL) basketNumber++;
-               openType = (int)POSITION_TYPE_SELL;
+               _lastTradeTime = TimeCurrent();
+               _basketCount++;
+               if(_basketNumberType != (int)POSITION_TYPE_SELL) _basketNumber++;
+               _stats.openType = (int)POSITION_TYPE_SELL;
             }
             else
             {
-               Print("Error opening SELL position: ", trade.ResultRetcodeDescription());
+               Print("Error opening SELL position: ", _trade.ResultRetcodeDescription());
             }
          }
       }
@@ -691,7 +684,7 @@ void openPosition()
 {
    if(EnableCalendar)
    {
-      // Calendar check - only trade at appropriate times relative to news
+      // Calendar check - only _trade at appropriate times relative to news
       string calType = GetCalendarTypeString(_calendar.type1);
 
       if(_calendar.eventTime1 > TrailCalendarMinutes && calType == "since ")
@@ -710,18 +703,18 @@ void openPosition()
 //+------------------------------------------------------------------+
 void sendBack()
 {
-   if((ContinueTrading || (!ContinueTrading && totalBackupTrades > 0)) &&
-      (totalBackupTrades < MaxTrades - MaxStartTrades))
+   if((ContinueTrading || (!ContinueTrading && _stats.totalBackupTrades > 0)) &&
+      (_stats.totalBackupTrades < MaxTrades - _maxStartTrades))
    {
-      symbolInfo.RefreshRates();
-      double ask = symbolInfo.Ask();
-      double bid = symbolInfo.Bid();
+      _symbolInfo.RefreshRates();
+      double ask = _symbolInfo.Ask();
+      double bid = _symbolInfo.Bid();
 
       // Get bar data for spike detection
-      if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 2, closeArray) < 2) return;
-      if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 2, openArray) < 2) return;
-      if(CopyHigh(_Symbol, PERIOD_CURRENT, 0, 2, highArray) < 2) return;
-      if(CopyLow(_Symbol, PERIOD_CURRENT, 0, 2, lowArray) < 2) return;
+      if(CopyClose(_Symbol, PERIOD_CURRENT, 0, 2, _closeArray) < 2) return;
+      if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 2, _openArray) < 2) return;
+      if(CopyHigh(_Symbol, PERIOD_CURRENT, 0, 2, _highArray) < 2) return;
+      if(CopyLow(_Symbol, PERIOD_CURRENT, 0, 2, _lowArray) < 2) return;
 
       if(Aggressive)
       {
@@ -730,65 +723,65 @@ void sendBack()
          if(_market.bullish) type = (int)POSITION_TYPE_BUY;
          else if(_market.bearish) type = (int)POSITION_TYPE_SELL;
 
-         if(!_market.nearLongPosition && type == (int)POSITION_TYPE_BUY && sellLots == 0)
+         if(!_market.nearLongPosition && type == (int)POSITION_TYPE_BUY && _stats.sellLots == 0)
          {
-            string comment = version + " " + _market.signalComment + " Backup " + IntegerToString(basketNumber);
-            if(!trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, backupLotSize, ask, 0, 0, comment))
-               Print("Error opening aggressive BUY backup: ", trade.ResultRetcodeDescription());
+            string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
+            if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
+               Print("Error opening aggressive BUY backup: ", _trade.ResultRetcodeDescription());
          }
-         else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL && buyLots == 0)
+         else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL && _stats.buyLots == 0)
          {
-            string comment = version + " " + _market.signalComment + " Backup " + IntegerToString(basketNumber);
-            if(!trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, backupLotSize, bid, 0, 0, comment))
-               Print("Error opening aggressive SELL backup: ", trade.ResultRetcodeDescription());
+            string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
+            if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
+               Print("Error opening aggressive SELL backup: ", _trade.ResultRetcodeDescription());
          }
       }
       else
       {
          // Spike detection for BUY backup (bullish spike)
-         if(MathAbs(highArray[0] - lowArray[0]) > CandleSpike * MathAbs(highArray[1] - lowArray[1]) &&
-            openArray[0] < closeArray[0] &&
-            closeArray[0] < (highArray[0] + lowArray[0]) / 2 &&
-            ((!AllowHedge && openType == (int)POSITION_TYPE_BUY) || AllowHedge))
+         if(MathAbs(_highArray[0] - _lowArray[0]) > CandleSpike * MathAbs(_highArray[1] - _lowArray[1]) &&
+            _openArray[0] < _closeArray[0] &&
+            _closeArray[0] < (_highArray[0] + _lowArray[0]) / 2 &&
+            ((!AllowHedge && _stats.openType == (int)POSITION_TYPE_BUY) || AllowHedge))
          {
-            double freeMargin = accountInfo.FreeMargin();
+            double freeMargin = _accountInfo.FreeMargin();
             double marginRequired = 0;
-            if(OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, backupLotSize, ask, marginRequired))
+            if(OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, _backupLotSize, ask, marginRequired))
             {
                if(freeMargin >= marginRequired)
                {
-                  string comment = version + " Backup " + _market.signalComment + " " + IntegerToString(basketNumber);
-                  if(trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, backupLotSize, ask, 0, 0, comment))
+                  string comment = _version + " Backup " + _market.signalComment + " " + IntegerToString(_basketNumber);
+                  if(_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
                   {
                      Print("Opened BUY backup on spike: ", comment);
-                     lastTradeTime = TimeCurrent();
+                     _lastTradeTime = TimeCurrent();
                   }
                   else
-                     Print("Error opening BUY backup: ", trade.ResultRetcodeDescription());
+                     Print("Error opening BUY backup: ", _trade.ResultRetcodeDescription());
                }
             }
          }
 
          // Spike detection for SELL backup (bearish spike)
-         if(MathAbs(highArray[0] - lowArray[0]) > CandleSpike * MathAbs(highArray[1] - lowArray[1]) &&
-            openArray[0] > closeArray[0] &&
-            closeArray[0] > (highArray[0] + lowArray[0]) / 2 &&
-            ((!AllowHedge && openType == (int)POSITION_TYPE_SELL) || AllowHedge))
+         if(MathAbs(_highArray[0] - _lowArray[0]) > CandleSpike * MathAbs(_highArray[1] - _lowArray[1]) &&
+            _openArray[0] > _closeArray[0] &&
+            _closeArray[0] > (_highArray[0] + _lowArray[0]) / 2 &&
+            ((!AllowHedge && _stats.openType == (int)POSITION_TYPE_SELL) || AllowHedge))
          {
-            double freeMargin = accountInfo.FreeMargin();
+            double freeMargin = _accountInfo.FreeMargin();
             double marginRequired = 0;
-            if(OrderCalcMargin(ORDER_TYPE_SELL, _Symbol, backupLotSize, bid, marginRequired))
+            if(OrderCalcMargin(ORDER_TYPE_SELL, _Symbol, _backupLotSize, bid, marginRequired))
             {
                if(freeMargin >= marginRequired)
                {
-                  string comment = version + " Backup " + _market.signalComment + " " + IntegerToString(basketNumber);
-                  if(trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, backupLotSize, bid, 0, 0, comment))
+                  string comment = _version + " Backup " + _market.signalComment + " " + IntegerToString(_basketNumber);
+                  if(_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
                   {
                      Print("Opened SELL backup on spike: ", comment);
-                     lastTradeTime = TimeCurrent();
+                     _lastTradeTime = TimeCurrent();
                   }
                   else
-                     Print("Error opening SELL backup: ", trade.ResultRetcodeDescription());
+                     Print("Error opening SELL backup: ", _trade.ResultRetcodeDescription());
                }
             }
          }
@@ -822,34 +815,34 @@ void backSystem()
 //+------------------------------------------------------------------+
 void managePositions()
 {
-   symbolInfo.RefreshRates();
-   double ask = symbolInfo.Ask();
-   double bid = symbolInfo.Bid();
+   _symbolInfo.RefreshRates();
+   double ask = _symbolInfo.Ask();
+   double bid = _symbolInfo.Bid();
 
    // Basket profit condition: Close profitable positions if history is negative
-   if(totalHistoryProfit < 0 && totalProfit > 0 &&
-      totalProfit > MathAbs(maxEquity - totalHistoryProfit) * BasketProfit)
+   if(_totalHistoryProfit < 0 && _stats.totalProfit > 0 &&
+      _stats.totalProfit > MathAbs(_maxEquity - _totalHistoryProfit) * BasketProfit)
    {
       Print("Basket profit target reached, closing profitable positions");
       closeAll("profits");
    }
    // Multiple trades with overall profit
-   else if(totalTrades > 1 && totalProfit + totalLoss > OpenProfit * accountInfo.Balance())
+   else if(_stats.totalTrades > 1 && _stats.totalProfit + _stats.totalLoss > OpenProfit * _accountInfo.Balance())
    {
       Print("Open profit target reached, closing all positions");
       closeAll();
    }
    // Safe exit: Close on trend reversal
-   else if(SafeExits && totalTrades > 0 &&
-           totalProfit + totalLoss > SafeProfit * accountInfo.Balance() &&
-           ((_market.bullish && basketNumberType == (int)POSITION_TYPE_SELL) ||
-            (_market.bearish && basketNumberType == (int)POSITION_TYPE_BUY)))
+   else if(SafeExits && _stats.totalTrades > 0 &&
+           _stats.totalProfit + _stats.totalLoss > SafeProfit * _accountInfo.Balance() &&
+           ((_market.bullish && _basketNumberType == (int)POSITION_TYPE_SELL) ||
+            (_market.bearish && _basketNumberType == (int)POSITION_TYPE_BUY)))
    {
       Print("SafeExit triggered: Trend reversal detected");
       closeAll();
    }
    // Calendar-based exit: Close positions with profit if news approaching
-   else if(EnableCalendar && totalTrades > 0 && totalProfit + totalLoss > 0 &&
+   else if(EnableCalendar && _stats.totalTrades > 0 && _stats.totalProfit + _stats.totalLoss > 0 &&
            _calendar.eventTime1 < LeadCalendarMinutes &&
            GetCalendarTypeString(_calendar.type1) == "until " && _calendar.eventTime1 > 0)
    {
@@ -861,33 +854,33 @@ void managePositions()
       // Individual position management
       for(int i = PositionsTotal() - 1; i >= 0; i--)
       {
-         if(!positionInfo.SelectByIndex(i)) continue;
+         if(!_positionInfo.SelectByIndex(i)) continue;
 
-         if(positionInfo.Symbol() == _Symbol && positionInfo.Magic() == MAGIC)
+         if(_positionInfo.Symbol() == _Symbol && _positionInfo.Magic() == _MAGIC)
          {
             // For small number of trades, exit when price moves in favor
-            if(totalTrades <= MaxStartTrades)
+            if(_stats.totalTrades <= _maxStartTrades)
             {
-               if(positionInfo.PositionType() == POSITION_TYPE_BUY &&
-                  bid > positionInfo.PriceOpen() &&
-                  positionInfo.Profit() > MinProfit * accountInfo.Balance())
+               if(_positionInfo.PositionType() == POSITION_TYPE_BUY &&
+                  bid > _positionInfo.PriceOpen() &&
+                  _positionInfo.Profit() > MinProfit * _accountInfo.Balance())
                {
-                  if(trade.PositionClose(positionInfo.Ticket()))
+                  if(_trade.PositionClose(_positionInfo.Ticket()))
                   {
-                     Print("Closed BUY position with profit: ", positionInfo.Profit());
-                     dailyGrowth += positionInfo.Profit();
-                     lastTradeTime = TimeCurrent();
+                     Print("Closed BUY position with profit: ", _positionInfo.Profit());
+                     _dailyGrowth += _positionInfo.Profit();
+                     _lastTradeTime = TimeCurrent();
                   }
                }
-               else if(positionInfo.PositionType() == POSITION_TYPE_SELL &&
-                       ask < positionInfo.PriceOpen() &&
-                       positionInfo.Profit() > MinProfit * accountInfo.Balance())
+               else if(_positionInfo.PositionType() == POSITION_TYPE_SELL &&
+                       ask < _positionInfo.PriceOpen() &&
+                       _positionInfo.Profit() > MinProfit * _accountInfo.Balance())
                {
-                  if(trade.PositionClose(positionInfo.Ticket()))
+                  if(_trade.PositionClose(_positionInfo.Ticket()))
                   {
-                     Print("Closed SELL position with profit: ", positionInfo.Profit());
-                     dailyGrowth += positionInfo.Profit();
-                     lastTradeTime = TimeCurrent();
+                     Print("Closed SELL position with profit: ", _positionInfo.Profit());
+                     _dailyGrowth += _positionInfo.Profit();
+                     _lastTradeTime = TimeCurrent();
                   }
                }
             }
@@ -902,27 +895,27 @@ void managePositions()
 void longStop()
 {
    if(EnableStop &&
-      totalHistoryProfit > StopGrowth * accountInfo.Balance() &&
-      (totalProfit + totalLoss) < 0 &&
-      MathAbs(totalProfit + totalLoss) > RelativeStop * totalHistoryProfit)
+      _totalHistoryProfit > StopGrowth * _accountInfo.Balance() &&
+      (_stats.totalProfit + _stats.totalLoss) < 0 &&
+      MathAbs(_stats.totalProfit + _stats.totalLoss) > RelativeStop * _totalHistoryProfit)
    {
-      Print("Long-term stop triggered. Historical profit: ", totalHistoryProfit,
-            " Current drawdown: ", (totalProfit + totalLoss));
+      Print("Long-term stop triggered. Historical profit: ", _totalHistoryProfit,
+            " Current drawdown: ", (_stats.totalProfit + _stats.totalLoss));
       closeAll();
    }
 }
 
 //+------------------------------------------------------------------+
-//| Update HUD display on chart                                       |
+//| Update HUD _display on chart                                       |
 //+------------------------------------------------------------------+
 void update()
 {
-   display = "";
-   display = display + "\n Growth: " + DoubleToString(dailyGrowth / accountInfo.Balance() * 100, 1) +
+   _display = "";
+   _display = _display + "\n Growth: " + DoubleToString(_dailyGrowth / _accountInfo.Balance() * 100, 1) +
              " / " + DoubleToString(DailyGrowth * 100, 1) + "%" +
-             " Milestones: " + IntegerToString(dailyTargets) + " / " + IntegerToString(totalDays) +
-             " Trend: " + DoubleToString(_indicators.trendStrength / pipPoints, 1);
-   display = display + " Spread: " + DoubleToString(spread, 1);
+             " Milestones: " + IntegerToString(_dailyTargets) + " / " + IntegerToString(_totalDays) +
+             " Trend: " + DoubleToString(_indicators.trendStrength / _pipPoints, 1);
+   _display = _display + " Spread: " + DoubleToString(_spread, 1);
 
    // MT5 CONVERSION: Create or update chart label
    // MT4: ObjectCreate("hud", OBJ_LABEL, 0, 0, 0)
@@ -940,9 +933,9 @@ void update()
       ObjectSetInteger(0, "hud", OBJPROP_YDISTANCE, 20);
 
    // MT5 CONVERSION: ObjectSetText() replaced with ObjectSetString()
-   // MT4: ObjectSetText("hud", display, 10, "Arial Bold", LightGray)
-   // MT5: ObjectSetString(0, "hud", OBJPROP_TEXT, display)
-   ObjectSetString(0, "hud", OBJPROP_TEXT, display);
+   // MT4: ObjectSetText("hud", _display, 10, "Arial Bold", LightGray)
+   // MT5: ObjectSetString(0, "hud", OBJPROP_TEXT, _display)
+   ObjectSetString(0, "hud", OBJPROP_TEXT, _display);
    ObjectSetString(0, "hud", OBJPROP_FONT, "Arial Bold");
    ObjectSetInteger(0, "hud", OBJPROP_FONTSIZE, 10);
    ObjectSetInteger(0, "hud", OBJPROP_COLOR, clrLightGray);
@@ -982,7 +975,7 @@ void update()
       else if(_calendar.impact1 == 3) impactText = "Speaks";
       else impactText = "Unknown";
 
-      // Build calendar display text
+      // Build calendar _display text
       if(_calendar.eventTime1 >= 99999)
       {
          calendarText = "Calendar: No relevant news events";
@@ -1053,19 +1046,19 @@ void OnTick()
    // Trading conditions check
    if((dayOfWeek != 5 && !TradeFriday) || TradeFriday)
    {
-      if(dailyGrowth / accountInfo.Balance() < DailyGrowth &&
-         currentTime - lastTradeTime > SleepSeconds &&
-         (marginLevel == 0 || marginLevel > MinMarginLevel))
+      if(_dailyGrowth / _accountInfo.Balance() < DailyGrowth &&
+         currentTime - _lastTradeTime > SleepSeconds &&
+         (_marginLevel == 0 || _marginLevel > MinMarginLevel))
       {
          // Trigger backup system if in drawdown
-         if(totalTrades >= MaxStartTrades &&
-            (accountInfo.Balance() + (totalProfit + totalLoss)) / accountInfo.Balance() < TriggerBackSystem)
+         if(_stats.totalTrades >= _maxStartTrades &&
+            (_accountInfo.Balance() + (_stats.totalProfit + _stats.totalLoss)) / _accountInfo.Balance() < TriggerBackSystem)
          {
             backSystem();
          }
          // Open new positions if conditions met
-         else if((ContinueTrading || (!ContinueTrading && totalTrades > 0)) &&
-                 (totalTrades < MaxStartTrades || MaxStartTrades == 0))
+         else if((ContinueTrading || (!ContinueTrading && _stats.totalTrades > 0)) &&
+                 (_stats.totalTrades < _maxStartTrades || _maxStartTrades == 0))
          {
             openPosition();
          }
@@ -1097,32 +1090,32 @@ void OnTick()
 ║                                                                  ║
 ║ 3. TRADING CLASSES                                               ║
 ║    ✓ Added CTrade, CPositionInfo, CSymbolInfo, CAccountInfo    ║
-║    ✓ Set expert magic number via trade.SetExpertMagicNumber()  ║
+║    ✓ Set expert magic number via _trade.SetExpertMagicNumber()  ║
 ║                                                                  ║
 ║ 4. ORDER/POSITION MODEL                                          ║
-║    ✓ OrderSend() → trade.PositionOpen()                        ║
-║    ✓ OrderClose() → trade.PositionClose()                      ║
+║    ✓ OrderSend() → _trade.PositionOpen()                        ║
+║    ✓ OrderClose() → _trade.PositionClose()                      ║
 ║    ✓ OrdersTotal() → PositionsTotal()                          ║
-║    ✓ OrderSelect() → positionInfo.SelectByIndex()              ║
-║    ✓ OrderType() → positionInfo.PositionType()                 ║
+║    ✓ OrderSelect() → _positionInfo.SelectByIndex()              ║
+║    ✓ OrderType() → _positionInfo.PositionType()                 ║
 ║    ✓ OP_BUY/OP_SELL → POSITION_TYPE_BUY/POSITION_TYPE_SELL    ║
-║    ✓ OrderProfit() → positionInfo.Profit()                     ║
-║    ✓ OrderLots() → positionInfo.Volume()                       ║
-║    ✓ OrderOpenPrice() → positionInfo.PriceOpen()               ║
-║    ✓ OrderStopLoss() → positionInfo.StopLoss()                 ║
-║    ✓ OrderComment() → positionInfo.Comment()                   ║
+║    ✓ OrderProfit() → _positionInfo.Profit()                     ║
+║    ✓ OrderLots() → _positionInfo.Volume()                       ║
+║    ✓ OrderOpenPrice() → _positionInfo.PriceOpen()               ║
+║    ✓ OrderStopLoss() → _positionInfo.StopLoss()                 ║
+║    ✓ OrderComment() → _positionInfo.Comment()                   ║
 ║                                                                  ║
 ║ 5. MARKET INFORMATION                                            ║
 ║    ✓ MarketInfo() → SymbolInfoDouble(), SymbolInfoInteger()   ║
-║    ✓ Ask/Bid → symbolInfo.Ask(), symbolInfo.Bid()             ║
+║    ✓ Ask/Bid → _symbolInfo.Ask(), _symbolInfo.Bid()             ║
 ║    ✓ MODE_DIGITS → SYMBOL_DIGITS                               ║
 ║    ✓ MODE_MARGINREQUIRED → OrderCalcMargin()                   ║
 ║                                                                  ║
 ║ 6. ACCOUNT INFORMATION                                           ║
-║    ✓ AccountBalance() → accountInfo.Balance()                  ║
-║    ✓ AccountEquity() → accountInfo.Equity()                    ║
-║    ✓ AccountMargin() → accountInfo.Margin()                    ║
-║    ✓ AccountFreeMargin() → accountInfo.FreeMargin()            ║
+║    ✓ AccountBalance() → _accountInfo.Balance()                  ║
+║    ✓ AccountEquity() → _accountInfo.Equity()                    ║
+║    ✓ AccountMargin() → _accountInfo.Margin()                    ║
+║    ✓ AccountFreeMargin() → _accountInfo.FreeMargin()            ║
 ║    ✓ AccountFreeMarginCheck() → OrderCalcMargin()              ║
 ║                                                                  ║
 ║ 7. INDICATORS                                                    ║
@@ -1141,16 +1134,16 @@ void OnTick()
 ║    ✓ Must call HistorySelect() before accessing history        ║
 ║                                                                  ║
 ║ 9. PRICE DATA                                                    ║
-║    ✓ Close[0] → Copy to closeArray[] with CopyClose()          ║
-║    ✓ Open[0] → Copy to openArray[] with CopyOpen()             ║
-║    ✓ High[0] → Copy to highArray[] with CopyHigh()             ║
-║    ✓ Low[0] → Copy to lowArray[] with CopyLow()                ║
+║    ✓ Close[0] → Copy to _closeArray[] with CopyClose()          ║
+║    ✓ Open[0] → Copy to _openArray[] with CopyOpen()             ║
+║    ✓ High[0] → Copy to _highArray[] with CopyHigh()             ║
+║    ✓ Low[0] → Copy to _lowArray[] with CopyLow()                ║
 ║    ✓ MqlRates structure for complete bar data                   ║
 ║                                                                  ║
 ║ 10. TIME FUNCTIONS                                               ║
 ║    ✓ DayOfWeek() → MqlDateTime structure                       ║
 ║    ✓ Hour() → MqlDateTime structure                            ║
-║    ✓ lastTradeTime: int → datetime                             ║
+║    ✓ _lastTradeTime: int → datetime                             ║
 ║                                                                  ║
 ║ 11. CHART OBJECTS                                                ║
 ║    ✓ ObjectCreate() → ObjectCreate(0, ...)  [chart ID required]║
@@ -1161,7 +1154,7 @@ void OnTick()
 ║                                                                  ║
 ║ 12. ERROR HANDLING                                               ║
 ║    ✓ Added error checking for all CopyBuffer() calls           ║
-║    ✓ Added trade result checking with trade.ResultRetcodeDescription()║
+║    ✓ Added _trade result checking with _trade.ResultRetcodeDescription()║
 ║    ✓ Enhanced error messages with context                       ║
 ║                                                                  ║
 ║ 13. CALENDAR INTEGRATION (COMPLETED)                             ║
@@ -1198,11 +1191,11 @@ void OnTick()
 ║                                                                  ║
 ║ TESTING RECOMMENDATIONS:                                         ║
 ║ • Test on demo account first                                     ║
-║ • Verify lot size calculations match MT4 version                ║
+║ • Verify lot size calculations match MT4 _version                ║
 ║ • Check position opening/closing logic                          ║
-║ • Confirm indicator values match MT4 version                    ║
+║ • Confirm indicator values match MT4 _version                    ║
 ║ • Test calendar integration with EnableCalendar=true            ║
-║ • Verify calendar events display correctly in HUD               ║
+║ • Verify calendar events _display correctly in HUD               ║
 ║ • Check trading restrictions near high-impact news              ║
 ║ • Test with different impact level combinations                 ║
 ║                                                                  ║
