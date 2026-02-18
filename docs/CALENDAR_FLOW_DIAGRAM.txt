@@ -1,0 +1,440 @@
+═══════════════════════════════════════════════════════════════════════════════
+                    MILESTONE 20.5 CALENDAR INTEGRATION FLOW
+═══════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              OnTick() Called                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         prepare() Main Function                             │
+│                                                                             │
+│  Calls in sequence:                                                         │
+│  1. prepareIndicators()  ──────► Get ATR, ADX, MA values                   │
+│  2. prepareCalendar()    ──────► ✓ FETCH ECONOMIC CALENDAR                 │
+│  3. prepareTrend()       ──────► Generate trading signals                   │
+│  4. setPipPoint()        ──────► Set pip point value                        │
+│  5. prepareHistory()     ──────► Calculate historical profit                │
+│  6. preparePositions()   ──────► Count open positions                       │
+│  7. lotSize()            ──────► Calculate lot sizes                        │
+│  8. update()             ──────► Update HUD display                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                     prepareCalendar() - DETAILED FLOW                       ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 1: Check if Calendar Enabled                                          │
+│                                                                             │
+│  if(!EnableCalendar)                                                        │
+│    ├─► Set ffCalenadarEventTime1 = 99999 (no restrictions)                │
+│    ├─► Set ffCalenadarEventTime2 = 99999                                   │
+│    └─► RETURN (calendar disabled, allow all trading)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 2: Extract Symbol Currencies                                          │
+│                                                                             │
+│  Symbol: EURUSD                                                             │
+│    ├─► baseCurrency = "EUR"                                                │
+│    └─► quoteCurrency = "USD"                                               │
+│                                                                             │
+│  Symbol: GBPJPY                                                             │
+│    ├─► baseCurrency = "GBP"                                                │
+│    └─► quoteCurrency = "JPY"                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 3: Define Time Range                                                  │
+│                                                                             │
+│  currentTime = TimeCurrent()                                                │
+│  startTime = currentTime - (24 * 3600)    // 24 hours ago                  │
+│  endTime = currentTime + (48 * 3600)      // 48 hours ahead                │
+│                                                                             │
+│  Timeline:                                                                  │
+│  ├──────────────┼──────────────┼──────────────────────┤                    │
+│  24h ago       NOW            24h ahead              48h ahead              │
+│  (Past)     (Current)        (Near Future)        (Far Future)             │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 4: Query MT5 Calendar API                                             │
+│                                                                             │
+│  MqlCalendarValue values[]                                                  │
+│  valueCount = CalendarValueHistory(values, startTime, endTime)             │
+│                                                                             │
+│  if(valueCount <= 0)                                                        │
+│    └─► No events found, set safe defaults and RETURN                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 5: Filter Events (Loop through all calendar values)                   │
+│                                                                             │
+│  FOR each event in values[]:                                                │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────┐     │
+│  │ 5a. Get Event Details                                             │     │
+│  │     CalendarEventById(event_id, event)                            │     │
+│  │       ├─► event.name = "Non-Farm Payrolls"                        │     │
+│  │       ├─► event.importance = CALENDAR_IMPORTANCE_HIGH             │     │
+│  │       └─► event.country_id = (country reference)                  │     │
+│  └───────────────────────────────────────────────────────────────────┘     │
+│                         │                                                   │
+│                         ▼                                                   │
+│  ┌───────────────────────────────────────────────────────────────────┐     │
+│  │ 5b. Get Country/Currency                                          │     │
+│  │     CalendarCountryById(country_id, country)                      │     │
+│  │       └─► country.currency = "USD"                                │     │
+│  └───────────────────────────────────────────────────────────────────┘     │
+│                         │                                                   │
+│                         ▼                                                   │
+│  ┌───────────────────────────────────────────────────────────────────┐     │
+│  │ 5c. Currency Filter                                               │     │
+│  │     if(currency != EUR && currency != USD)                        │     │
+│  │       └─► SKIP (not relevant to EURUSD)                           │     │
+│  └───────────────────────────────────────────────────────────────────┘     │
+│                         │                                                   │
+│                         ▼                                                   │
+│  ┌───────────────────────────────────────────────────────────────────┐     │
+│  │ 5d. Impact Filter                                                 │     │
+│  │     Check importance level:                                        │     │
+│  │       • HIGH → Include if IncludeHigh = true                      │     │
+│  │       • MEDIUM → Include if IncludeMedium = true                  │     │
+│  │       • LOW → Include if IncludeLow = true                        │     │
+│  │                                                                    │     │
+│  │     Check for speech keywords:                                     │     │
+│  │       if("speech", "testimony", "press" in name)                  │     │
+│  │         └─► Include if IncludeSpeaks = true                       │     │
+│  └───────────────────────────────────────────────────────────────────┘     │
+│                         │                                                   │
+│                         ▼                                                   │
+│  ┌───────────────────────────────────────────────────────────────────┐     │
+│  │ 5e. Categorize Event                                              │     │
+│  │     if(event.time < currentTime)                                  │     │
+│  │       └─► Add to pastEvents[]                                     │     │
+│  │     else                                                           │     │
+│  │       └─► Add to upcomingEvents[]                                 │     │
+│  └───────────────────────────────────────────────────────────────────┘     │
+│                                                                             │
+│  END FOR                                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 6: Select Most Relevant Events                                        │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ Find Most Recent Past Event:                                    │       │
+│  │   Loop through pastEvents[]                                     │       │
+│  │     └─► Select event with latest timestamp                      │       │
+│  │                                                                  │       │
+│  │   Example: CPI released 3 hours ago                             │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+│                                                                             │
+│  ┌─────────────────────────────────────────────────────────────────┐       │
+│  │ Find Next Upcoming Event:                                       │       │
+│  │   Loop through upcomingEvents[]                                 │       │
+│  │     └─► Select event with earliest timestamp                    │       │
+│  │                                                                  │       │
+│  │   Example: NFP in 5 hours                                       │       │
+│  └─────────────────────────────────────────────────────────────────┘       │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 7: Calculate Time Differences                                         │
+│                                                                             │
+│  For Past Event:                                                            │
+│    secondsSince = currentTime - event.time                                  │
+│    minutesSince = secondsSince / 60                                         │
+│    milestoneHours1 = minutesSince / 60                                      │
+│    milestoneMinutes1 = minutesSince % 60                                    │
+│    ffCalenadarEventTime1 = minutesSince                                     │
+│                                                                             │
+│  For Upcoming Event:                                                        │
+│    secondsUntil = event.time - currentTime                                  │
+│    minutesUntil = secondsUntil / 60                                         │
+│    milestoneHours2 = minutesUntil / 60                                      │
+│    milestoneMinutes2 = minutesUntil % 60                                    │
+│    ffCalenadarEventTime2 = minutesUntil                                     │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ STEP 8: Populate Milestone Variables                                       │
+│                                                                             │
+│  EVENT 1 (Primary - for trading decisions):                                │
+│    ├─ milestoneCurrency1 = "USD"                                           │
+│    ├─ milestoneText1 = "Non-Farm Payrolls"                                 │
+│    ├─ milestoneType1 = 1 (until) or 0 (since)                              │
+│    ├─ milestoneImpact1 = 0 (High)                                          │
+│    ├─ milestoneHours1 = 5.0                                                │
+│    ├─ milestoneMinutes1 = 30.0                                             │
+│    └─ ffCalenadarEventTime1 = 330.0 (minutes)                              │
+│                                                                             │
+│  EVENT 2 (Secondary - for information):                                    │
+│    └─ Similar structure with "2" suffix                                    │
+│                                                                             │
+│  PRIORITY LOGIC:                                                            │
+│    If upcoming event exists:                                                │
+│      └─► Use upcoming event as Event 1 (override past event)               │
+│    Else if only past event exists:                                         │
+│      └─► Use past event as Event 1                                         │
+│    Else:                                                                    │
+│      └─► Set ffCalenadarEventTime1 = 99999 (no restrictions)               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                        TRADING LOGIC INTEGRATION                            ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ prepareTrend() - Signal Generation                                          │
+│                                                                             │
+│  SIGNAL D: Calendar-aware signal                                           │
+│                                                                             │
+│  calendarCondition = (!EnableCalendar) ||                                  │
+│                      (EnableCalendar &&                                     │
+│                       ffCalenadarEventTime1 > TrailCalendarMinutes &&      │
+│                       getCalendarType1() == "since ")                       │
+│                                                                             │
+│  Translation:                                                               │
+│    Signal D only activates if:                                             │
+│      • Calendar disabled, OR                                                │
+│      • More than 480 minutes (8 hours) since last news event               │
+│                                                                             │
+│  Result: ✓ bullish or ✓ bearish signal set                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ openPosition() - Entry Control                                             │
+│                                                                             │
+│  if(EnableCalendar)                                                         │
+│    {                                                                        │
+│      calType = getCalendarType1()  // Returns "since " or "until "         │
+│                                                                             │
+│      ┌────────────────────────────────────────────────────────────┐        │
+│      │ CASE 1: Past Event ("since ")                              │        │
+│      │   if(ffCalenadarEventTime1 > TrailCalendarMinutes)         │        │
+│      │     └─► ALLOW TRADING (480+ minutes passed)                │        │
+│      │   else                                                      │        │
+│      │     └─► BLOCK TRADING (too soon after news)                │        │
+│      └────────────────────────────────────────────────────────────┘        │
+│                                                                             │
+│      ┌────────────────────────────────────────────────────────────┐        │
+│      │ CASE 2: Upcoming Event ("until ")                          │        │
+│      │   if(ffCalenadarEventTime1 > LeadCalendarMinutes)          │        │
+│      │     └─► ALLOW TRADING (240+ minutes before)                │        │
+│      │   else                                                      │        │
+│      │     └─► BLOCK TRADING (too close to news)                  │        │
+│      └────────────────────────────────────────────────────────────┘        │
+│                                                                             │
+│      ┌────────────────────────────────────────────────────────────┐        │
+│      │ CASE 3: No Events                                          │        │
+│      │   if(ffCalenadarEventTime1 >= 99999)                       │        │
+│      │     └─► ALLOW TRADING (no restrictions)                    │        │
+│      └────────────────────────────────────────────────────────────┘        │
+│    }                                                                        │
+│  else                                                                       │
+│    └─► ALLOW TRADING (calendar disabled)                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ managePositions() - Exit Control                                           │
+│                                                                             │
+│  Calendar-based exit condition:                                            │
+│                                                                             │
+│  if(EnableCalendar &&                                                       │
+│     totalTrades > 0 &&                                                      │
+│     totalProfit + totalLoss > 0 &&                    // In profit         │
+│     ffCalenadarEventTime1 < LeadCalendarMinutes &&    // News soon         │
+│     getCalendarType1() == "until ")                   // Upcoming          │
+│    {                                                                        │
+│      Print("Calendar exit triggered: Upcoming news event")                 │
+│      closeAll()  // Close all positions before news                        │
+│    }                                                                        │
+│                                                                             │
+│  Example Timeline:                                                          │
+│                                                                             │
+│    NOW          3h before        NEWS         4h after        8h after     │
+│     │              │               │              │              │          │
+│     ├──────────────┼───────────────┼──────────────┼──────────────┤          │
+│     Trading     Close All      No Trading      Caution      Resume         │
+│                 if Profit                                  Trading          │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ backSystem() - Backup Trade Control                                        │
+│                                                                             │
+│  Same calendar conditions as openPosition():                               │
+│    • Check time since/until event                                          │
+│    • Apply LeadCalendarMinutes and TrailCalendarMinutes                    │
+│    • Block backup trades near news events                                  │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                     │
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ update() - HUD Display                                                     │
+│                                                                             │
+│  Calendar status line shows:                                               │
+│                                                                             │
+│  if(EnableCalendar)                                                         │
+│    {                                                                        │
+│      if(no events) → "Calendar: No relevant news events"                   │
+│                                                                             │
+│      if(upcoming && < LeadCalendarMinutes)                                 │
+│        → "⚠ NEWS IN 2h 15m - USD [High] NFP - WAITING/EXIT"               │
+│                                                                             │
+│      if(upcoming && > LeadCalendarMinutes)                                 │
+│        → "Calendar: 5h 30m until USD [High] NFP"                           │
+│                                                                             │
+│      if(past && < TrailCalendarMinutes)                                    │
+│        → "⏳ 3h 45m since USD [High] CPI - CAUTION"                        │
+│                                                                             │
+│      if(past && > TrailCalendarMinutes)                                    │
+│        → "Calendar: 9h 15m since EUR [Medium] - Trading normal"            │
+│    }                                                                        │
+│  else                                                                       │
+│    → "Calendar: Disabled"                                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                          EXAMPLE SCENARIOS                                  ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+SCENARIO 1: Non-Farm Payrolls (NFP) - High Impact
+────────────────────────────────────────────────────────────────────────────
+
+  Settings: IncludeHigh = true, LeadCalendarMinutes = 240, TrailCalendarMinutes = 480
+
+  Timeline:
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │  10:00 AM              12:00 PM              2:30 PM              10:30 PM │
+  │     │                     │                     │                     │  │
+  │     ├─────────────────────┼─────────────────────┼─────────────────────┤  │
+  │  Trading             Stop New              NFP              Resume      │
+  │  Normal             Positions          Released           Trading      │
+  │                   Close Profits                                        │
+  │                                                                        │
+  │  HUD Display Changes:                                                  │
+  │  ─────────────────────────────────────────────────────────────────    │
+  │  10:00 AM: "Calendar: 4h 30m until USD [High] Non-Farm Payrolls"      │
+  │  12:00 PM: "⚠ NEWS IN 2h 30m - USD [High] NFP - WAITING/EXIT"        │
+  │   1:00 PM: Trading blocked, positions closed if profitable             │
+  │   2:30 PM: News released, no trading allowed                          │
+  │   6:30 PM: "⏳ 4h 0m since USD [High] NFP - CAUTION"                  │
+  │  10:30 PM: "Calendar: 8h 0m since USD [High] - Trading normal"        │
+  │            Trading resumes                                             │
+  └────────────────────────────────────────────────────────────────────────┘
+
+SCENARIO 2: ECB Rate Decision + Press Conference - High Impact + Speech
+─────────────────────────────────────────────────────────────────────────
+
+  Settings: IncludeHigh = true, IncludeSpeaks = true
+
+  Timeline:
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                                                                        │
+  │   9:00 AM              1:45 PM              4:00 PM              12:00 AM │
+  │     │                     │                     │                     │  │
+  │     ├─────────────────────┼─────────────────────┼─────────────────────┤  │
+  │  Trading            ECB Rate          Press Conference          Resume  │
+  │  Normal            Decision            (Speech Detected)       Trading │
+  │                   2:45 PM                                              │
+  │                                                                        │
+  │  Two Events Tracked:                                                   │
+  │  ────────────────────────────────────────────────────────────────     │
+  │  Event 1 (Primary): 1:45 PM - EUR [High] Rate Decision               │
+  │  Event 2 (Secondary): 2:15 PM - EUR [Speaks] Press Conference        │
+  │                                                                        │
+  │  EA uses the EARLIEST upcoming event (Rate Decision) for timing       │
+  │  Both events block trading until TrailCalendarMinutes after the       │
+  │  LATEST event (Press Conference)                                      │
+  └────────────────────────────────────────────────────────────────────────┘
+
+SCENARIO 3: No Relevant News - Normal Trading
+──────────────────────────────────────────────
+
+  Settings: IncludeHigh = true, Symbol = EURUSD
+
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │  Calendar Check:                                                       │
+  │    • No USD events in next 48 hours                                    │
+  │    • No EUR events in next 48 hours                                    │
+  │    • GBP event exists but ignored (not in EURUSD)                      │
+  │                                                                        │
+  │  Result:                                                               │
+  │    ffCalenadarEventTime1 = 99999                                       │
+  │    HUD Display: "Calendar: No relevant news events"                    │
+  │    Trading: UNRESTRICTED                                               │
+  └────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+╔═════════════════════════════════════════════════════════════════════════════╗
+║                     DATA STRUCTURE REFERENCE                                ║
+╚═════════════════════════════════════════════════════════════════════════════╝
+
+MqlCalendarValue Structure (from MT5 API):
+──────────────────────────────────────────
+  long                event_id;        // Event ID
+  datetime            time;            // Event time
+  datetime            period;          // Period for which published
+  int                 revision;        // Revision indicator
+  long                actual_value;    // Actual value (if available)
+  long                prev_value;      // Previous value
+  long                revised_prev_value; // Revised previous value
+  long                forecast_value;  // Forecast value
+  ENUM_CALENDAR_EVENT_IMPACT impact_type; // Impact level
+
+MqlCalendarEvent Structure (from MT5 API):
+───────────────────────────────────────────
+  ulong               id;              // Event ID
+  ENUM_CALENDAR_EVENT_TYPE type;       // Event type
+  ENUM_CALENDAR_EVENT_SECTOR sector;   // Economic sector
+  ENUM_CALENDAR_EVENT_FREQUENCY frequency; // Release frequency
+  ENUM_CALENDAR_EVENT_TIMEMODE time_mode;  // Time mode
+  ulong               country_id;      // Country ID
+  ENUM_CALENDAR_EVENT_UNIT unit;       // Value unit
+  ENUM_CALENDAR_EVENT_IMPORTANCE importance; // Importance level
+  ENUM_CALENDAR_EVENT_MULTIPLIER multiplier; // Value multiplier
+  uint                digits;          // Decimal places
+  string              source_url;      // Source URL
+  string              event_code;      // Event code
+  string              name;            // Event name
+
+MqlCalendarCountry Structure (from MT5 API):
+─────────────────────────────────────────────
+  ulong               id;              // Country ID
+  string              name;            // Country name
+  string              code;            // Country code (ISO 3166-1 alpha-2)
+  string              currency;        // Currency code (USD, EUR, etc.)
+  string              currency_symbol; // Currency symbol ($, €, etc.)
+  string              url_name;        // URL-friendly country name
+
+CalendarEvent Structure (Custom):
+──────────────────────────────────
+  datetime            eventTime;       // When event occurs
+  string              currency;        // Currency code (extracted from country)
+  string              eventName;       // Event description (from event.name)
+  ENUM_CALENDAR_EVENT_IMPORTANCE importance; // Impact level
+  bool                isPast;          // True if already occurred
+
+═══════════════════════════════════════════════════════════════════════════════
+
+                              END OF FLOW DIAGRAM
