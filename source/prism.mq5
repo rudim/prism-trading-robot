@@ -184,13 +184,8 @@ double _longHistortProfit = 0;
 double _dailyGrowth = 0;
 double _maxEquity = 0;
 double _maxBasketDrawDown = 0;
-string _display = "\n";
 CalendarData _calendar;
 PositionStats _stats;
-
-int _dailyTargets = 0;
-int _totalDays = 0;
-int _turn = 0;
 
 IndicatorHandles _handles;
 IndicatorValues _indicators;
@@ -266,10 +261,6 @@ void OnDeinit(const int reason)
 {
    // Release indicator handles
    _handles.Release();
-
-   // Clean up chart objects
-   ObjectDelete(0, "hud");
-   ObjectDelete(0, "hudCalendar");
 
    // Clear comment
    Comment("");
@@ -358,16 +349,9 @@ void calculateLotSize()
    datetime currentTime = TimeCurrent();
    if(MathMod((long)currentTime, 3600 * RefreshHours) <= 10)
    {
-      if(_turn == 0) _totalDays = _totalDays + 1;
-      _turn = 1;
-
       // Check if daily growth target reached
       if(_dailyGrowth / accountBalance > DailyGrowth)
-      {
          Print("Daily growth target reached: ", DoubleToString(_dailyGrowth / accountBalance * 100, 2), "%");
-         _dailyTargets = _dailyTargets + 1;
-         _turn = 1;
-      }
 
       _dailyGrowth = 0;
 
@@ -377,10 +361,6 @@ void calculateLotSize()
          Print("Daily reset: Closing all profitable positions");
          closeAll();
       }
-   }
-   else
-   {
-      _turn = 0;
    }
 
    // Safe growth check - close all if daily target reached
@@ -456,7 +436,6 @@ void prepare()
    _totalHistoryProfit = CalculateHistoricalProfit(_MAGIC, QueryHistory, _symbolHistory);
    AnalyzePositions(_stats, _market, _MAGIC, _indicators.ATR, TradeSpace);
    calculateLotSize();   // Calculate lot sizes and check daily growth
-   update();             // Update _display on chart
 }
 
 //+------------------------------------------------------------------+
@@ -785,120 +764,6 @@ void longStop()
 }
 
 //+------------------------------------------------------------------+
-//| Update HUD _display on chart                                       |
-//+------------------------------------------------------------------+
-void update()
-{
-   _display = "";
-   _display = _display + "\n Growth: " + DoubleToString(_dailyGrowth / _accountInfo.Balance() * 100, 1) +
-             " / " + DoubleToString(DailyGrowth * 100, 1) + "%" +
-             " Milestones: " + IntegerToString(_dailyTargets) + " / " + IntegerToString(_totalDays) +
-             " Trend: " + DoubleToString(_indicators.trendStrength / _pipPoints, 1);
-   _display = _display + " Spread: " + DoubleToString(_spread, 1);
-
-   // MT5 CONVERSION: Create or update chart label
-   // MT4: ObjectCreate("hud", OBJ_LABEL, 0, 0, 0)
-   // MT5: ObjectCreate(0, "hud", OBJ_LABEL, 0, 0, 0) - requires chart ID
-   if(ObjectFind(0, "hud") == -1)
-   {
-      ObjectCreate(0, "hud", OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, "hud", OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, "hud", OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
-   }
-
-   if(EnableCalendar)
-      ObjectSetInteger(0, "hud", OBJPROP_YDISTANCE, 90);
-   else
-      ObjectSetInteger(0, "hud", OBJPROP_YDISTANCE, 20);
-
-   // MT5 CONVERSION: ObjectSetText() replaced with ObjectSetString()
-   // MT4: ObjectSetText("hud", _display, 10, "Arial Bold", LightGray)
-   // MT5: ObjectSetString(0, "hud", OBJPROP_TEXT, _display)
-   ObjectSetString(0, "hud", OBJPROP_TEXT, _display);
-   ObjectSetString(0, "hud", OBJPROP_FONT, "Arial Bold");
-   ObjectSetInteger(0, "hud", OBJPROP_FONTSIZE, 10);
-   ObjectSetInteger(0, "hud", OBJPROP_COLOR, clrLightGray);
-   ObjectSetInteger(0, "hud", OBJPROP_XDISTANCE, 6);
-
-   // Calendar HUD
-   if(ObjectFind(0, "hudCalendar") == -1)
-   {
-      ObjectCreate(0, "hudCalendar", OBJ_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, "hudCalendar", OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, "hudCalendar", OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
-   }
-
-   ObjectSetInteger(0, "hudCalendar", OBJPROP_XDISTANCE, 10);
-
-   if(EnableCalendar)
-      ObjectSetInteger(0, "hudCalendar", OBJPROP_YDISTANCE, 110);
-   else
-      ObjectSetInteger(0, "hudCalendar", OBJPROP_YDISTANCE, 40);
-
-   ObjectSetString(0, "hudCalendar", OBJPROP_FONT, "Arial Bold");
-   ObjectSetInteger(0, "hudCalendar", OBJPROP_FONTSIZE, 10);
-   ObjectSetInteger(0, "hudCalendar", OBJPROP_COLOR, clrLightGray);
-
-   // Calendar status messages with event details
-   string calendarText = "";
-
-   if(EnableCalendar)
-   {
-      string calType = GetCalendarTypeString(_calendar.type1);
-      string impactText = "";
-
-      // Get impact level text
-      if(_calendar.impact1 == 0) impactText = "High";
-      else if(_calendar.impact1 == 1) impactText = "Medium";
-      else if(_calendar.impact1 == 2) impactText = "Low";
-      else if(_calendar.impact1 == 3) impactText = "Speaks";
-      else impactText = "Unknown";
-
-      // Build calendar _display text
-      if(_calendar.eventTime1 >= 99999)
-      {
-         calendarText = "Calendar: No relevant news events";
-      }
-      else if(calType == "until ")
-      {
-         // Upcoming event
-         long hours = (long)_calendar.hours1;
-         long minutes = (long)_calendar.minutes1;
-
-         if(_calendar.eventTime1 < LeadCalendarMinutes)
-            calendarText = StringFormat("⚠ NEWS IN %dh %dm - %s [%s] %s - WAITING/EXIT",
-                                       hours, minutes, _calendar.currency1, impactText, _calendar.text1);
-         else
-            calendarText = StringFormat("Calendar: %dh %dm until %s [%s] %s",
-                                       hours, minutes, _calendar.currency1, impactText, _calendar.text1);
-      }
-      else if(calType == "since ")
-      {
-         // Past event
-         long hours = (long)_calendar.hours1;
-         long minutes = (long)_calendar.minutes1;
-
-         if(_calendar.eventTime1 < TrailCalendarMinutes)
-            calendarText = StringFormat("⏳ %dh %dm since %s [%s] %s - CAUTION",
-                                       hours, minutes, _calendar.currency1, impactText, _calendar.text1);
-         else
-            calendarText = StringFormat("Calendar: %dh %dm since %s [%s] - Trading normal",
-                                       hours, minutes, _calendar.currency1, impactText);
-      }
-      else
-      {
-         calendarText = "Calendar: Analyzing events...";
-      }
-   }
-   else
-   {
-      calendarText = "Calendar: Disabled";
-   }
-
-   ObjectSetString(0, "hudCalendar", OBJPROP_TEXT, calendarText);
-}
-
-//+------------------------------------------------------------------+
 //| Expert tick function (MT5: changed from start())                 |
 //+------------------------------------------------------------------+
 void OnTick()
@@ -952,131 +817,3 @@ void OnTick()
 //+------------------------------------------------------------------+
 //| END OF FILE                                                       |
 //+------------------------------------------------------------------+
-
-/*
-╔══════════════════════════════════════════════════════════════════╗
-║                   MT4 TO MT5 CONVERSION SUMMARY                  ║
-╠══════════════════════════════════════════════════════════════════╣
-║                                                                  ║
-║ 1. INITIALIZATION FUNCTIONS                                      ║
-║    ✓ init() → OnInit()                                          ║
-║    ✓ start() → OnTick()                                         ║
-║    ✓ Added OnDeinit() for cleanup                               ║
-║                                                                  ║
-║ 2. INPUT PARAMETERS                                              ║
-║    ✓ extern → input                                             ║
-║    ✓ Added input groups for better organization                 ║
-║                                                                  ║
-║ 3. TRADING CLASSES                                               ║
-║    ✓ Added CTrade, CPositionInfo, CSymbolInfo, CAccountInfo    ║
-║    ✓ Set expert magic number via _trade.SetExpertMagicNumber()  ║
-║                                                                  ║
-║ 4. ORDER/POSITION MODEL                                          ║
-║    ✓ OrderSend() → _trade.PositionOpen()                        ║
-║    ✓ OrderClose() → _trade.PositionClose()                      ║
-║    ✓ OrdersTotal() → PositionsTotal()                          ║
-║    ✓ OrderSelect() → _positionInfo.SelectByIndex()              ║
-║    ✓ OrderType() → _positionInfo.PositionType()                 ║
-║    ✓ OP_BUY/OP_SELL → POSITION_TYPE_BUY/POSITION_TYPE_SELL    ║
-║    ✓ OrderProfit() → _positionInfo.Profit()                     ║
-║    ✓ OrderLots() → _positionInfo.Volume()                       ║
-║    ✓ OrderOpenPrice() → _positionInfo.PriceOpen()               ║
-║    ✓ OrderStopLoss() → _positionInfo.StopLoss()                 ║
-║    ✓ OrderComment() → _positionInfo.Comment()                   ║
-║                                                                  ║
-║ 5. MARKET INFORMATION                                            ║
-║    ✓ MarketInfo() → SymbolInfoDouble(), SymbolInfoInteger()   ║
-║    ✓ Ask/Bid → _symbolInfo.Ask(), _symbolInfo.Bid()             ║
-║    ✓ MODE_DIGITS → SYMBOL_DIGITS                               ║
-║    ✓ MODE_MARGINREQUIRED → OrderCalcMargin()                   ║
-║                                                                  ║
-║ 6. ACCOUNT INFORMATION                                           ║
-║    ✓ AccountBalance() → _accountInfo.Balance()                  ║
-║    ✓ AccountEquity() → _accountInfo.Equity()                    ║
-║    ✓ AccountMargin() → _accountInfo.Margin()                    ║
-║    ✓ AccountFreeMargin() → _accountInfo.FreeMargin()            ║
-║    ✓ AccountFreeMarginCheck() → OrderCalcMargin()              ║
-║                                                                  ║
-║ 7. INDICATORS                                                    ║
-║    ✓ iATR() → Create handle with iATR(), read with CopyBuffer()║
-║    ✓ iADX() → Create handle with iADX(), read with CopyBuffer()║
-║    ✓ iMA() → Create handle with iMA(), read with CopyBuffer() ║
-║    ✓ Indicators use handles and buffer arrays instead of direct║
-║      function calls returning values                            ║
-║    ✓ All arrays set as series with ArraySetAsSeries()          ║
-║                                                                  ║
-║ 8. HISTORY ACCESS                                                ║
-║    ✓ OrdersHistoryTotal() → HistoryDealsTotal()                ║
-║    ✓ OrderSelect(MODE_HISTORY) → HistoryDealGetTicket()        ║
-║    ✓ OrderProfit() → HistoryDealGetDouble(DEAL_PROFIT)         ║
-║    ✓ OrderSymbol() → HistoryDealGetString(DEAL_SYMBOL)         ║
-║    ✓ Must call HistorySelect() before accessing history        ║
-║                                                                  ║
-║ 9. PRICE DATA                                                    ║
-║    ✓ Close[0] → Copy to _closeArray[] with CopyClose()          ║
-║    ✓ Open[0] → Copy to _openArray[] with CopyOpen()             ║
-║    ✓ High[0] → Copy to _highArray[] with CopyHigh()             ║
-║    ✓ Low[0] → Copy to _lowArray[] with CopyLow()                ║
-║    ✓ MqlRates structure for complete bar data                   ║
-║                                                                  ║
-║ 10. TIME FUNCTIONS                                               ║
-║    ✓ DayOfWeek() → MqlDateTime structure                       ║
-║    ✓ Hour() → MqlDateTime structure                            ║
-║    ✓ _lastTradeTime: int → datetime                             ║
-║                                                                  ║
-║ 11. CHART OBJECTS                                                ║
-║    ✓ ObjectCreate() → ObjectCreate(0, ...)  [chart ID required]║
-║    ✓ ObjectDescription() → ObjectGetString(OBJPROP_TEXT)       ║
-║    ✓ ObjectSetText() → ObjectSetString(OBJPROP_TEXT)           ║
-║    ✓ ObjectSet() → ObjectSetInteger(), ObjectSetDouble()       ║
-║    ✓ ObjectFind() → ObjectFind(0, ...)  [chart ID required]    ║
-║                                                                  ║
-║ 12. ERROR HANDLING                                               ║
-║    ✓ Added error checking for all CopyBuffer() calls           ║
-║    ✓ Added _trade result checking with _trade.ResultRetcodeDescription()║
-║    ✓ Enhanced error messages with context                       ║
-║                                                                  ║
-║ 13. CALENDAR INTEGRATION (COMPLETED)                             ║
-║    ✓ prepareCalendar() - Fully implemented using MT5 native API║
-║    ✓ getCalendarType1() - Returns "since " or "until "         ║
-║    ✓ CalendarValueHistory() - Fetches events in 72-hour window ║
-║    ✓ CalendarEventById() - Gets event details and importance   ║
-║    ✓ CalendarCountryById() - Filters by symbol currencies      ║
-║    ✓ Tracks next upcoming event and most recent past event     ║
-║    ✓ Calculates time until/since events in minutes             ║
-║    ✓ Filters by impact level (High/Medium/Low/Speaks)          ║
-║    ✓ Speech detection using keyword matching                    ║
-║    ✓ Populates all milestone variables for trading logic       ║
-║                                                                  ║
-║    Implementation details:                                       ║
-║    • Uses CalendarEvent struct to organize event data           ║
-║    • Extracts base/quote currencies from symbol name            ║
-║    • 24-hour lookback and 48-hour lookahead window              ║
-║    • Priority to upcoming events over past events               ║
-║    • Handles cases where no events are scheduled                ║
-║                                                                  ║
-║ 14. CODE QUALITY IMPROVEMENTS                                    ║
-║    ✓ Comprehensive inline comments explaining conversions       ║
-║    ✓ Clear TODO markers for calendar integration                ║
-║    ✓ Enhanced logging with descriptive messages                 ║
-║    ✓ Proper error handling throughout                           ║
-║    ✓ Organized code structure with function headers             ║
-║                                                                  ║
-║ COMPILATION NOTES:                                               ║
-║ • Ensure Trade library is available in MT5 Include directory    ║
-║ • All indicator handles must be valid before use                ║
-║ • Array operations require proper sizing with CopyBuffer()      ║
-║ • Calendar features disabled until indicator is ported          ║
-║                                                                  ║
-║ TESTING RECOMMENDATIONS:                                         ║
-║ • Test on demo account first                                     ║
-║ • Verify lot size calculations match MT4 _version                ║
-║ • Check position opening/closing logic                          ║
-║ • Confirm indicator values match MT4 _version                    ║
-║ • Test calendar integration with EnableCalendar=true            ║
-║ • Verify calendar events _display correctly in HUD               ║
-║ • Check trading restrictions near high-impact news              ║
-║ • Test with different impact level combinations                 ║
-║                                                                  ║
-╚══════════════════════════════════════════════════════════════════╝
-*/

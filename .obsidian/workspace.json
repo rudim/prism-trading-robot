@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/rm_001_hard_stop_loss.md",
+                "file": "docs/rm_011_profit_lock_in.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "rm_001_hard_stop_loss"
+              "title": "rm_011_profit_lock_in"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/rm_001_hard_stop_loss.md",
+                "file": "docs/rm_011_profit_lock_in.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for rm_001_hard_stop_loss"
+              "title": "Backlinks for rm_011_profit_lock_in"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "docs/rm_001_hard_stop_loss.md",
+                "file": "docs/rm_011_profit_lock_in.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from rm_001_hard_stop_loss"
+              "title": "Outgoing links from rm_011_profit_lock_in"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "docs/rm_001_hard_stop_loss.md",
+                "file": "docs/rm_011_profit_lock_in.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of rm_001_hard_stop_loss"
+              "title": "Outline of rm_011_profit_lock_in"
             }
           }
         ]
@@ -185,25 +185,25 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
+    "docs/TODO_known_bugs.md",
+    "docs/rm_011_profit_lock_in.md",
+    "docs/rm_001_hard_stop_loss.md",
+    "docs/rm_005_drawdown_circuit_breaker.md",
+    "docs/rm_010_dynamic_max_trades.md",
+    "docs/analysis_leverage_and_trading_pocket.md",
     "source/prism.mq5",
     "source/prism_x.mq5",
     "source/original copy.mq5",
-    "docs/toto_bugs.md",
     "source/original.mq5",
     "source/Milestone_v20.x.mq5",
-    "docs/rm_011_profit_lock_in.md",
-    "docs/rm_010_dynamic_max_trades.md",
     "docs/rm_009_volatility_adjusted_sizing.md",
     "docs/rm_008_effective_leverage_monitor.md",
     "docs/rm_007_trading_pocket.md",
     "docs/rm_002_max_lot_size_cap.md",
-    "docs/rm_001_hard_stop_loss.md",
-    "docs/rm_005_drawdown_circuit_breaker.md",
     "docs/rm_006_consecutive_loss_limiter.md",
     "docs/rm_004_emergency_close.md",
     "docs/rm_003_leverage_normalisation.md",
     "CLAUDE.md",
-    "docs/analysis_leverage_and_trading_pocket.md",
     "docs/spec_prism_risk_management.md",
     "source/Includes/PrismPositions.mqh",
     "source/Includes/PrismIndicators.mqh",
