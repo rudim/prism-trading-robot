@@ -1,8 +1,8 @@
-# Milestone 20.5 MT5 - Calendar Integration Documentation
+# Prism MT5 - Calendar Integration Documentation
 
 ## Overview
 
-The Milestone 20.5 EA now includes full integration with MT5's native economic calendar API. This replaces the MT4 version's dependency on the custom `milestone_calendar` indicator that parsed ForexFactory feeds.
+The Prism now includes full integration with MT5's native economic calendar API. This replaces the MT4 version's dependency on the custom `prism_calendar` indicator that parsed ForexFactory feeds.
 
 ## Implementation Details
 
@@ -31,17 +31,17 @@ This function is called on every tick to fetch and process economic calendar eve
 4. **Impact Filtering**: Applies user-defined filters (High, Medium, Low, Speaks)
 5. **Event Categorization**: Separates events into past and upcoming
 6. **Event Selection**: Identifies most recent past event and next upcoming event
-7. **Data Population**: Fills milestone variables for trading logic
+7. **Data Population**: Fills calendar struct for trading logic
 
 ### Key Variables Populated
 
 #### Primary Event Data (Event 1)
 - `ffCalenadarEventTime1` - Minutes until/since the primary event
-- `milestoneCurrency1` - Currency code (USD, EUR, GBP, etc.)
-- `milestoneText1` - Event description
-- `milestoneType1` - 0 = "since", 1 = "until"
-- `milestoneImpact1` - 0=High, 1=Medium, 2=Low, 3=Speaks
-- `milestoneHours1` / `milestoneMinutes1` - Time breakdown
+- `calendar.currency1` - Currency code (USD, EUR, GBP, etc.)
+- `calendar.text1` - Event description
+- `calendar.type1` - 0 = "since", 1 = "until"
+- `calendar.impact1` - 0=High, 1=Medium, 2=Low, 3=Speaks
+- `calendar.hours1` / `calendar.minutes1` - Time breakdown
 
 #### Secondary Event Data (Event 2)
 - `ffCalenadarEventTime2` - Minutes until/since the secondary event
@@ -261,7 +261,7 @@ In all error cases, it defaults to safe behavior (allows trading as if calendar 
 ## Comparison with MT4 Version
 
 ### MT4 Implementation
-- Custom indicator `milestone_calendar`
+- Custom indicator `prism_calendar`
 - Parsed ForexFactory XML feed
 - Created chart objects with event data
 - EA read data from chart objects

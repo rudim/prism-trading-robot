@@ -21,17 +21,17 @@ There is no automated build system. MQL5 code is compiled inside **MetaEditor** 
 
 ## Architecture
 
-The EA was refactored from a monolithic single file (~1,744 lines in v20.5) to a modular architecture in v22.0. The entry point coordinates five include files:
+The EA uses a modular architecture. The entry point coordinates five include files:
 
 ```
 source/
-├── prism.mq5                     # Main EA: OnInit, OnTick, OnDeinit + all input parameters
+├── prism.mq5                   # Main EA: OnInit, OnTick, OnDeinit + all input parameters
 └── Includes/
-    ├── MilestoneTypes.mqh        # Shared data structures (CalendarEvent, MarketConditions, PositionStats, IndicatorValues)
-    ├── MilestoneIndicators.mqh   # ATR, ADX, MA indicator handles + ReadIndicatorValues()
-    ├── MilestoneCalendar.mqh     # Economic calendar integration via MT5 native API
-    ├── MilestoneSignals.mqh      # Four trading signal generators (A/B/C/D)
-    └── MilestonePositions.mqh    # Open position analysis + historical profit calculation
+    ├── PrismTypes.mqh          # Shared data structures (CalendarEvent, MarketConditions, PositionStats, IndicatorValues)
+    ├── PrismIndicators.mqh     # ATR, ADX, MA indicator handles + ReadIndicatorValues()
+    ├── PrismCalendar.mqh       # Economic calendar integration via MT5 native API
+    ├── PrismSignals.mqh        # Four trading signal generators (A/B/C/D)
+    └── PrismPositions.mqh      # Open position analysis + historical profit calculation
 ```
 
 **Data flow**: `prism.mq5` calls `ReadIndicatorValues()` → `AnalyzePositions()` → `PrepareCalendar()` → `AnalyzeTrendSignals()` on each tick, then executes trades based on returned structs.
@@ -56,15 +56,15 @@ Parameters are grouped into 14 logical sections in `prism.mq5` (lines ~1–200).
 
 ## Key Conventions
 
-- **Pip calculation**: `GetPipPoint()` in `MilestonePositions.mqh` auto-detects 4 vs 5-digit pricing (e.g., EURUSD vs USDJPY)
+- **Pip calculation**: `GetPipPoint()` in `PrismPositions.mqh` auto-detects 4 vs 5-digit pricing (e.g., EURUSD vs USDJPY)
 - **ATR-based spacing**: `TradeSpace` (minimum distance between trades) is measured in ATR units, not pips
 - **Magic number**: Identifies EA's own orders — never hardcoded; passed from main file to all include functions
 - **Struct-based API**: Functions accept/return `IndicatorValues`, `PositionStats`, `CalendarData` structs rather than raw primitives
 
 ## Documentation
 
-- `source/README.md` — Feature overview for v22.0
-- `source/CHANGELOG.md` — Version history
+- `source/README.md` — Architecture and module overview
+- `source/CHANGELOG.md` — Change history
 - `docs/back_trade_system.md` — Deep dive on backup/insurance trade logic
 - `docs/CALENDAR_INTEGRATION_README.md` — Economic calendar setup
 - `research/` — 52 trading strategy reference documents (research only, not implementation specs)

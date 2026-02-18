@@ -1,12 +1,11 @@
 //+------------------------------------------------------------------+
-//|                                            MilestoneSignals.mqh  |
+//|                                               PrismSignals.mqh  |
 //|                                    Trading signal generation     |
 //+------------------------------------------------------------------+
-#property copyright "Milestone EA"
-#property version   "22.00"
+#property copyright "Rudi & Claude"
 
-#include "MilestoneTypes.mqh"
-#include "MilestoneCalendar.mqh"
+#include "PrismTypes.mqh"
+#include "PrismCalendar.mqh"
 
 //+------------------------------------------------------------------+
 //| Check if current hour is within trading hours for signal         |

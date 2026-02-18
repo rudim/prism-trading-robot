@@ -1,4 +1,4 @@
-# Milestone 20.5 MT5 - Installation & Testing Checklist
+# Prism MT5 - Installation & Testing Checklist
 
 ## Pre-Installation
 
@@ -10,7 +10,7 @@
 ## File Verification
 
 - [ ] Confirm all files are present:
-  - `milestone-20.5.mq5` (70 KB) - Main EA file
+  - `prism.mq5` (70 KB) - Main EA file
   - `CALENDAR_INTEGRATION_README.md` (11 KB) - Complete documentation
   - `CALENDAR_QUICK_START.md` (7 KB) - Quick reference guide
   - `CALENDAR_FLOW_DIAGRAM.txt` (44 KB) - Visual flow diagram
@@ -20,7 +20,7 @@
 ## Compilation
 
 - [ ] Open MetaEditor (F4 from MT5)
-- [ ] Open `milestone-20.5.mq5`
+- [ ] Open `prism.mq5`
 - [ ] Compile (F7 or press Compile button)
 - [ ] Verify zero errors
 - [ ] Verify zero warnings
@@ -29,7 +29,7 @@
 **Expected Output:**
 ```
 0 error(s), 0 warning(s)
-milestone-20.5.ex5 successfully compiled
+prism.ex5 successfully compiled
 ```
 
 ## Demo Account Setup
@@ -83,13 +83,13 @@ MinLots = 0.01  (minimum for safety)
 ║   - Lead time: 240 minutes                                 ║
 ║   - Trail time: 480 minutes                                ║
 ╚════════════════════════════════════════════════════════════╝
-Milestone 20.5 MT5 initialized successfully on EURUSD
+Prism MT5 initialized successfully on EURUSD
 ```
 
 ### Step 3: HUD Display Check
 
 - [ ] Verify two text labels appear on chart:
-  - Main HUD (Growth, Milestones, Trend, Spread)
+  - Main HUD (Growth, Targets, Trend, Spread)
   - Calendar HUD (Event status and details)
 
 **Example Calendar HUD Display:**
@@ -155,7 +155,7 @@ Calendar: No relevant news events
 **0-4 hours after news**:
 - [ ] Calendar HUD shows: "⏳ Xh Xm since [Currency] [High] [Event] - CAUTION"
 - [ ] EA continues blocking new positions
-- [ ] milestoneType1 = 0 (since)
+- [ ] calendar.type1 = 0 (since)
 
 **4-8 hours after news**:
 - [ ] Calendar HUD still shows caution state
@@ -446,7 +446,7 @@ MaxTrades = 7
 - **Quick Settings Guide**: `CALENDAR_QUICK_START.md`
 - **Flow Diagrams**: `CALENDAR_FLOW_DIAGRAM.txt`
 - **Implementation Notes**: `IMPLEMENTATION_SUMMARY.md`
-- **Source Code**: `milestone-20.5.mq5` (fully commented)
+- **Source Code**: `prism.mq5` (fully commented)
 
 ## Final Pre-Live Checklist
 

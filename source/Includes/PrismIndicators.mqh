@@ -1,11 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                        MilestoneIndicators.mqh   |
+//|                                            PrismIndicators.mqh  |
 //|                              Indicator management and reading    |
 //+------------------------------------------------------------------+
-#property copyright "Milestone EA"
-#property version   "22.00"
+#property copyright "Rudi & Claude"
 
-#include "MilestoneTypes.mqh"
+#include "PrismTypes.mqh"
 
 //+------------------------------------------------------------------+
 //| Indicator handles structure                                      |

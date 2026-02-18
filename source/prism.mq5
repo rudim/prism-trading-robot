@@ -1,13 +1,12 @@
 //+------------------------------------------------------------------+
-//|                                              milestone-22.0.mq5  |
-//|                                     Milestone EA - Refactored    |
+//|                                                       prism.mq5  |
+//|                                              Prism Trading EA    |
 //|                         Modular architecture with include files  |
 //+------------------------------------------------------------------+
-#property copyright "Milestone EA Team"
-#property link      "http://codebase.mql4.com/9050"
-#property version   "22.00"
-#property description "Milestone EA 22.0 - Modular Refactored Version"
-#property description "Extracted signals, calendar, and common functions into include files"
+#property copyright "Rudi & Claude"
+#property link      ""
+#property description "Prism Trading EA"
+#property description "Modular architecture with include files"
 
 //+------------------------------------------------------------------+
 //| Include MT5 trading libraries                                    |
@@ -19,13 +18,13 @@
 #include <Trade\AccountInfo.mqh>
 
 //+------------------------------------------------------------------+
-//| Include Milestone modules                                        |
+//| Include Prism modules                                            |
 //+------------------------------------------------------------------+
-#include "Includes\\MilestoneTypes.mqh"
-#include "Includes\\MilestoneCalendar.mqh"
-#include "Includes\\MilestoneSignals.mqh"
-#include "Includes\\MilestoneIndicators.mqh"
-#include "Includes\\MilestonePositions.mqh"
+#include "Includes\\PrismTypes.mqh"
+#include "Includes\\PrismCalendar.mqh"
+#include "Includes\\PrismSignals.mqh"
+#include "Includes\\PrismIndicators.mqh"
+#include "Includes\\PrismPositions.mqh"
 
 //+------------------------------------------------------------------+
 //| Trading objects                                                  |
@@ -39,7 +38,7 @@ CAccountInfo accountInfo;
 //+------------------------------------------------------------------+
 //| EA identification                                                |
 //+------------------------------------------------------------------+
-string version = "Milestone 22.0";
+string version = "Prism";
 int MAGIC = 20131130;
 
 //+------------------------------------------------------------------+
@@ -254,7 +253,7 @@ int OnInit()
    pipPoints = GetPipPoint();
    PrepareAll();
 
-   Print("Milestone 22.0 initialized successfully on ", _Symbol);
+   Print("Prism initialized successfully on ", _Symbol);
    return INIT_SUCCEEDED;
 }
 
@@ -271,7 +270,7 @@ void OnDeinit(const int reason)
    ObjectDelete(0, "hudCalendar");
    Comment("");
 
-   Print("Milestone 22.0 deinitialized");
+   Print("Prism deinitialized");
 }
 
 //+------------------------------------------------------------------+
@@ -757,7 +756,7 @@ void UpdateDisplay()
    display = "";
    display += "\n Growth: " + DoubleToString(dailyGrowth / accountInfo.Balance() * 100, 1) +
               " / " + DoubleToString(DailyGrowth * 100, 1) + "%" +
-              " Milestones: " + IntegerToString(dailyTargets) + " / " + IntegerToString(totalDays) +
+              " Targets: " + IntegerToString(dailyTargets) + " / " + IntegerToString(totalDays) +
               " Trend: " + DoubleToString(indicators.trendStrength / pipPoints, 1);
    display += " Spread: " + DoubleToString(spread, 1);
 

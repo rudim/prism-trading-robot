@@ -154,29 +154,29 @@
 │  For Past Event:                                                            │
 │    secondsSince = currentTime - event.time                                  │
 │    minutesSince = secondsSince / 60                                         │
-│    milestoneHours1 = minutesSince / 60                                      │
-│    milestoneMinutes1 = minutesSince % 60                                    │
+│    calendar.hours1 = minutesSince / 60                                      │
+│    calendar.minutes1 = minutesSince % 60                                    │
 │    ffCalenadarEventTime1 = minutesSince                                     │
 │                                                                             │
 │  For Upcoming Event:                                                        │
 │    secondsUntil = event.time - currentTime                                  │
 │    minutesUntil = secondsUntil / 60                                         │
-│    milestoneHours2 = minutesUntil / 60                                      │
-│    milestoneMinutes2 = minutesUntil % 60                                    │
+│    calendar.hours2 = minutesUntil / 60                                      │
+│    calendar.minutes2 = minutesUntil % 60                                    │
 │    ffCalenadarEventTime2 = minutesUntil                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
                                      │
                                      ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ STEP 8: Populate Milestone Variables                                       │
+│ STEP 8: Populate Calendar Variables                                       │
 │                                                                             │
 │  EVENT 1 (Primary - for trading decisions):                                │
-│    ├─ milestoneCurrency1 = "USD"                                           │
-│    ├─ milestoneText1 = "Non-Farm Payrolls"                                 │
-│    ├─ milestoneType1 = 1 (until) or 0 (since)                              │
-│    ├─ milestoneImpact1 = 0 (High)                                          │
-│    ├─ milestoneHours1 = 5.0                                                │
-│    ├─ milestoneMinutes1 = 30.0                                             │
+│    ├─ calendar.currency1 = "USD"                                           │
+│    ├─ calendar.text1 = "Non-Farm Payrolls"                                 │
+│    ├─ calendar.type1 = 1 (until) or 0 (since)                              │
+│    ├─ calendar.impact1 = 0 (High)                                          │
+│    ├─ calendar.hours1 = 5.0                                                │
+│    ├─ calendar.minutes1 = 30.0                                             │
 │    └─ ffCalenadarEventTime1 = 330.0 (minutes)                              │
 │                                                                             │
 │  EVENT 2 (Secondary - for information):                                    │

@@ -1,11 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                         MilestonePositions.mqh   |
+//|                                             PrismPositions.mqh  |
 //|                              Position analysis and management    |
 //+------------------------------------------------------------------+
-#property copyright "Milestone EA"
-#property version   "22.00"
+#property copyright "Rudi & Claude"
 
-#include "MilestoneTypes.mqh"
+#include "PrismTypes.mqh"
 #include <Trade\PositionInfo.mqh>
 #include <Trade\SymbolInfo.mqh>
 

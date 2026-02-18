@@ -1,11 +1,10 @@
 //+------------------------------------------------------------------+
-//|                                           MilestoneCalendar.mqh  |
+//|                                              PrismCalendar.mqh  |
 //|                              Economic calendar integration       |
 //+------------------------------------------------------------------+
-#property copyright "Milestone EA"
-#property version   "22.00"
+#property copyright "Rudi & Claude"
 
-#include "MilestoneTypes.mqh"
+#include "PrismTypes.mqh"
 
 //+------------------------------------------------------------------+
 //| Get currency codes relevant to current symbol                    |
@@ -91,11 +90,11 @@ int GetImpactLevel(ENUM_CALENDAR_EVENT_IMPORTANCE importance, bool isSpeech, boo
 //+------------------------------------------------------------------+
 //| Get calendar type string for display                             |
 //+------------------------------------------------------------------+
-string GetCalendarTypeString(int milestoneType)
+string GetCalendarTypeString(int eventType)
 {
-   if(milestoneType == 0)
+   if(eventType == 0)
       return "since ";
-   else if(milestoneType == 1)
+   else if(eventType == 1)
       return "until ";
    return "";
 }

@@ -1,15 +1,14 @@
-# Milestone 21.x - Risk Management Enhancement Specification
+# Prism - Risk Management Enhancement Specification
 
-**Version:** 21.x
 **Date:** 2026-02-16
-**Author:** Claude Code
+**Author:** Rudi & Claude
 **Status:** Draft for Review
 
 ---
 
 ## Executive Summary
 
-Analysis of the Milestone 20.x strategy revealed catastrophic account wipeouts caused by black swan events. The current implementation lacks adequate risk controls to prevent cascading losses. This specification outlines a comprehensive risk management framework that maintains the strategy's profit potential while implementing multiple layers of protection.
+Analysis of the Prism strategy revealed catastrophic account wipeouts caused by black swan events. The current implementation lacks adequate risk controls to prevent cascading losses. This specification outlines a comprehensive risk management framework that maintains the strategy's profit potential while implementing multiple layers of protection.
 
 **Key Finding:** Lower MarginUsage (0.1) causes early account depletion due to insufficient profit buffer, while higher MarginUsage (0.5) allows survival but creates vulnerability to single catastrophic trades.
 
@@ -579,7 +578,7 @@ void EmergencyCloseAll(ENUM_EMERGENCY_REASON reason)
 
    // Send alerts
    Alert("🚨 EMERGENCY CLOSE TRIGGERED: ", reason_text);
-   SendNotification("Milestone EA - Emergency Close: " + reason_text);
+   SendNotification("Prism - Emergency Close: " + reason_text);
 
    // Log state for analysis
    LogEmergencyState();
@@ -840,7 +839,7 @@ MarginUsage=0.50
 
 ### 6.3 Success Metrics
 
-| Metric | Current (20.x) | Target (21.x) | Measurement |
+| Metric | Current | Target | Measurement |
 |--------|----------------|---------------|-------------|
 | **Max Single Trade Loss** | -85% | **<15%** | Per trade P&L |
 | **Account Wipeout Rate** | 100% | **<5%** | 1000 backtest runs |
@@ -889,12 +888,12 @@ MarginUsage=0.50  # Original value
 # Manual intervention required
 
 # Step 4: Restart EA with 20.x binary
-# Recompile from milestone-20.5.mq5
+# Recompile from prism.mq5
 ```
 
 ### 7.3 Post-Rollback Analysis
 
-1. Export all logs from 21.x period
+1. Export all logs from this period
 2. Analyze which safety mechanism caused issues
 3. Adjust parameters or remove problematic feature
 4. Re-test in demo before re-deployment
@@ -956,7 +955,7 @@ MarginUsage=0.50  # Original value
 
 - [ ] **Documentation**
   - [ ] Document volatility adjustment logic
-  - [ ] Create optimization report comparing 20.x vs 21.x
+  - [ ] Create optimization report comparing before vs after
   - [ ] Publish performance metrics
 
 ### Final Validation
@@ -1012,7 +1011,7 @@ MarginUsage=0.50  # Original value
 
 ## 10. Conclusion
 
-This specification provides a comprehensive framework for enhancing the Milestone strategy's risk management while preserving its profit potential. The multi-layered approach ensures that no single failure can cause total account loss.
+This specification provides a comprehensive framework for enhancing the Prism strategy's risk management while preserving its profit potential. The multi-layered approach ensures that no single failure can cause total account loss.
 
 **Key Takeaways:**
 - ✅ MarginUsage stays at 0.50 for growth

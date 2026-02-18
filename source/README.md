@@ -1,181 +1,91 @@
-# Milestone EA 22.0 - Refactored Architecture
+# Prism Trading EA
 
 ## Overview
 
-Milestone EA 22.0 is a complete refactoring of version 20.5, focusing on code modularity, maintainability, and parameter organization. The core trading logic remains unchanged, but the code structure has been significantly improved.
+Prism is a MetaTrader 5 Expert Advisor built around a modular architecture. The core trading logic is split across focused include files to improve maintainability and extensibility.
 
-## What's New in Version 22.0
-
-### 1. Modular Architecture with Include Files
-
-All common functionality has been extracted into reusable include files:
+## Architecture
 
 ```
-Milestone-22.x/
-├── milestone-22.0.mq5          # Main EA file
-├── Includes/
-│   ├── MilestoneTypes.mqh      # Common data structures
-│   ├── MilestoneCalendar.mqh   # Economic calendar integration
-│   ├── MilestoneSignals.mqh    # Signal generation (A, B, C, D)
-│   ├── MilestoneIndicators.mqh # Indicator management
-│   └── MilestonePositions.mqh  # Position analysis
-└── README.md                   # This file
+source/
+├── prism.mq5               # Main EA: OnInit, OnTick, OnDeinit + all input parameters
+└── Includes/
+    ├── PrismTypes.mqh      # Common data structures
+    ├── PrismCalendar.mqh   # Economic calendar integration
+    ├── PrismSignals.mqh    # Signal generation (A, B, C, D)
+    ├── PrismIndicators.mqh # Indicator management
+    └── PrismPositions.mqh  # Position analysis
 ```
 
-### 2. Reorganized Parameters by Function
+## Parameter Groups
 
-Parameters are now grouped into logical categories with descriptive comments:
+Parameters are organised into 14 logical sections in `prism.mq5`:
 
-#### Parameter Groups:
-- **General Controls** - Basic EA operation
-- **News & Calendar** - Economic event filtering
-- **Risk Management** - Margin, stops, and safety features
-- **Trade Management** - Position limits and spacing
-- **Profit Targets** - Exit strategies and growth goals
-- **Backup System** - Drawdown recovery mechanism
-- **Signal A: Trend Following** - MA crossover parameters
-- **Signal B: ADX Crossover** - Directional indicator signals
-- **Signal C: Counter-Trend** - Extreme move entries
-- **Signal D: Momentum** - Combined MA/ADX with news filter
-- **Indicator: ATR** - Volatility measurement
-- **Indicator: ADX** - Trend strength
-- **Indicator: Moving Averages** - Trend direction
-- **History & Statistics** - Performance tracking
-
-### 3. Enhanced Parameter Descriptions
-
-Each parameter now includes a clear, one-sentence description explaining:
-- What the parameter does
-- Typical use cases
-- Safe/conservative vs aggressive values
-
-Example:
-```mql5
-input double MarginUsage = 0.1;  // Percentage of balance allocated to regular trades (10% = conservative)
-```
+- **General Controls** – Basic EA operation (`CloseAll`, `ContinueTrading`)
+- **News & Calendar** – Economic event filtering and blackout windows
+- **Risk Management** – Margin, stops, and lot sizing
+- **Trade Management** – Position limits, spacing, timing, and spread filter
+- **Profit Targets** – Exit strategies and daily growth goals
+- **Backup System** – Drawdown recovery mechanism
+- **Signal A: Trend Following** – MA crossover parameters
+- **Signal B: ADX Crossover** – Directional indicator signals
+- **Signal C: Counter-Trend** – Extreme move entries
+- **Signal D: Momentum** – Combined MA/ADX with news filter
+- **Indicator: ATR** – Volatility measurement
+- **Indicator: ADX** – Trend strength
+- **Indicator: Moving Averages** – Trend direction
+- **History & Statistics** – Performance tracking
 
 ## Include File Details
 
-### MilestoneTypes.mqh
-Defines common data structures used throughout the EA:
-- `CalendarEvent` - Economic event data
-- `MarketConditions` - Bullish/bearish/ranging flags
-- `PositionStats` - Open position statistics
-- `IndicatorValues` - Technical indicator readings
-- `CalendarData` - News event timing data
+### PrismTypes.mqh
+Common data structures:
+- `CalendarEvent` – Economic event data
+- `MarketConditions` – Bullish/bearish/ranging flags
+- `PositionStats` – Open position statistics
+- `IndicatorValues` – Technical indicator readings
+- `CalendarData` – News event timing data
 
-### MilestoneCalendar.mqh
-Handles economic calendar integration:
-- `PrepareCalendar()` - Fetches news events from MT5 API
-- `GetSymbolCurrencies()` - Extracts base/quote currencies
-- `IsEventImportanceIncluded()` - Filters by impact level
-- `IsSpeakingEvent()` - Detects central bank speeches
-- `GetCalendarTypeString()` - Formats "since" or "until" text
+### PrismCalendar.mqh
+Economic calendar integration:
+- `PrepareCalendar()` – Fetches news events from MT5 API
+- `GetSymbolCurrencies()` – Extracts base/quote currencies
+- `IsEventImportanceIncluded()` – Filters by impact level
+- `IsSpeakingEvent()` – Detects central bank speeches
+- `GetCalendarTypeString()` – Formats "since" or "until" text
 
-### MilestoneSignals.mqh
-Contains all signal generation logic:
-- `AnalyzeSignalA()` - Trend following with MA crossover
-- `AnalyzeSignalB()` - ADX directional indicator crossover
-- `AnalyzeSignalC()` - Counter-trend on strong moves
-- `AnalyzeSignalD()` - MA momentum + ADX with calendar filter
-- `AnalyzeTrendSignals()` - Master function evaluating all signals
-- `IsWithinTradingHours()` - Time-of-day filtering
+### PrismSignals.mqh
+Signal generation logic:
+- `AnalyzeSignalA()` – Trend following with MA crossover
+- `AnalyzeSignalB()` – ADX directional indicator crossover
+- `AnalyzeSignalC()` – Counter-trend on strong moves
+- `AnalyzeSignalD()` – MA momentum + ADX with calendar filter
+- `AnalyzeTrendSignals()` – Master function evaluating all signals
+- `IsWithinTradingHours()` – Time-of-day filtering
 
-### MilestoneIndicators.mqh
-Manages technical indicators:
-- `IndicatorHandles` - Structure holding all indicator handles
-- `InitializeIndicators()` - Creates ATR, ADX, MA handles
-- `ReadIndicatorValues()` - Copies indicator buffers into structure
+### PrismIndicators.mqh
+Technical indicator management:
+- `IndicatorHandles` – Structure holding all indicator handles
+- `InitializeIndicators()` – Creates ATR, ADX, MA handles
+- `ReadIndicatorValues()` – Copies indicator buffers into structure
 
-### MilestonePositions.mqh
+### PrismPositions.mqh
 Position analysis and statistics:
-- `AnalyzePositions()` - Scans open positions and calculates stats
-- `CalculateHistoricalProfit()` - Analyzes closed trade history
-- `GetPipPoint()` - Determines pip value based on symbol digits
-
-## Benefits of Refactoring
-
-### 1. Maintainability
-- Signal logic isolated in dedicated file
-- Calendar functions in one place
-- Easy to update specific functionality
-
-### 2. Reusability
-- Include files can be used in other EAs
-- Common structures standardized
-- No code duplication
-
-### 3. Readability
-- Parameters organized by function
-- Clear descriptions for each setting
-- Logical code flow
-
-### 4. Testing
-- Individual modules can be tested separately
-- Easier to debug specific functionality
-- Clean separation of concerns
-
-### 5. Extensibility
-- Easy to add Signal E, F, etc. in MilestoneSignals.mqh
-- Calendar logic won't change between versions
-- Position management standardized
-
-## Migration from 20.5 to 22.0
-
-All functionality from version 20.5 is preserved. The changes are purely structural:
-
-| Version 20.5 | Version 22.0 |
-|--------------|--------------|
-| All code in one file | Modular architecture with includes |
-| Parameters scattered | Parameters grouped by function |
-| Brief comments | Detailed one-sentence descriptions |
-| Direct function calls | Structured data types |
-
-## Parameter Changes
-
-**No parameter values changed** - all defaults remain the same as version 20.5.
-
-Only improvements:
-- Better organization
-- More descriptive names in comments
-- Grouped by functionality
+- `AnalyzePositions()` – Scans open positions and calculates stats
+- `CalculateHistoricalProfit()` – Analyses closed trade history
+- `GetPipPoint()` – Determines pip value based on symbol digits
 
 ## Compilation Requirements
 
 - MT5 build 3802 or higher
 - Trade library (included with MT5)
-- All include files must be in `Includes/` subdirectory
+- All include files must be in the `Includes/` subdirectory
 
-## Future Enhancements
+## Further Documentation
 
-The modular structure enables easy additions:
+- `back_trade_system.md` – Backup system deep-dive
+- `CALENDAR_INTEGRATION_README.md` – Economic calendar setup
 
-1. **New Signals** - Add Signal E, F, etc. to MilestoneSignals.mqh
-2. **Alternative Calendars** - Swap calendar implementation without touching EA
-3. **Custom Indicators** - Add new indicators to MilestoneIndicators.mqh
-4. **Advanced Statistics** - Extend PositionStats structure
-5. **Multiple Strategies** - Create MilestoneSignals2.mqh for different logic
+## Authors
 
-## Version History
-
-- **22.0** (2024) - Initial refactored release
-  - Modular architecture with include files
-  - Reorganized parameters by function
-  - Enhanced parameter descriptions
-  - No trading logic changes from 20.5
-
-- **20.5** (2023) - Base version
-  - Complete MT4 to MT5 conversion
-  - Native economic calendar integration
-  - All 4 signals implemented
-  - Backup system completed
-
-## Support & Documentation
-
-For detailed trading strategy explanation, see:
-- `back_trade_system.md` - Backup system analysis
-- Original source: http://codebase.mql4.com/9050
-
-## License
-
-Same as original Milestone EA from codebase.mql4.com/9050
+Rudi & Claude

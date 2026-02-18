@@ -185,6 +185,12 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
+    "docs/spec_prism_risk_management.md",
+    "source/Includes/PrismPositions.mqh",
+    "source/Includes/PrismIndicators.mqh",
+    "source/Includes/PrismSignals.mqh",
+    "source/Includes/PrismCalendar.mqh",
+    "source/Includes/PrismTypes.mqh",
     "docs/spec_milestone_21.x.md",
     "CLAUDE.md",
     "docs/INSTALLATION_CHECKLIST copy.md",

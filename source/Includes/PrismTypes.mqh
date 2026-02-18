@@ -1,9 +1,8 @@
 //+------------------------------------------------------------------+
-//|                                              MilestoneTypes.mqh  |
+//|                                                 PrismTypes.mqh  |
 //|                                    Common types and structures   |
 //+------------------------------------------------------------------+
-#property copyright "Milestone EA"
-#property version   "22.00"
+#property copyright "Rudi & Claude"
 
 //+------------------------------------------------------------------+
 //| Structure to hold calendar event data                            |

@@ -227,7 +227,7 @@ Review settings and check on-chart display for calendar status.
 
 For detailed information, see:
 - `CALENDAR_INTEGRATION_README.md` - Complete documentation
-- `milestone-20.5.mq5` - Source code with comments
+- `prism.mq5` - Source code with comments
 - MT5 Economic Calendar - Tools → Economic Calendar
 
 ---

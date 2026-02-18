@@ -1,68 +1,59 @@
-# Milestone EA 22.0 - Refactoring Summary
+# Prism Trading EA - Refactoring Summary
 
 ## What Was Accomplished
 
-### ✅ Complete Modular Refactoring
+### Complete Modular Refactoring
 
-The Milestone EA has been transformed from a single monolithic file into a clean, modular architecture:
+The EA was transformed from a single monolithic file into a clean, modular architecture:
 
 ```
-Milestone-22.x/
-├── milestone-22.0.mq5              ← Main EA (simplified, ~1,150 lines)
-├── README.md                        ← Complete documentation
-├── CHANGELOG.md                     ← Detailed change history
-├── REFACTORING_SUMMARY.md          ← This file
+source/
+├── prism.mq5               # Main EA (simplified)
+├── README.md               # Complete documentation
+├── CHANGELOG.md            # Change history
+├── REFACTORING_SUMMARY.md  # This file
 └── Includes/
-    ├── MilestoneTypes.mqh          ← Common data structures
-    ├── MilestoneCalendar.mqh       ← Economic calendar logic
-    ├── MilestoneSignals.mqh        ← All 4 signal generators
-    ├── MilestoneIndicators.mqh     ← Indicator management
-    └── MilestonePositions.mqh      ← Position analysis
+    ├── PrismTypes.mqh      # Common data structures
+    ├── PrismCalendar.mqh   # Economic calendar logic
+    ├── PrismSignals.mqh    # All 4 signal generators
+    ├── PrismIndicators.mqh # Indicator management
+    └── PrismPositions.mqh  # Position analysis
 ```
 
 ## Key Improvements
 
-### 1. Signal Logic Extracted ✨
+### 1. Signal Logic Extracted
 
 **Before:** All signal logic mixed in main file
-**After:** Clean separation in `MilestoneSignals.mqh`
+**After:** Clean separation in `PrismSignals.mqh`
 
-- `AnalyzeSignalA()` - Trend following with MA crossover
-- `AnalyzeSignalB()` - ADX directional crossover
-- `AnalyzeSignalC()` - Counter-trend on strong moves
-- `AnalyzeSignalD()` - MA momentum + ADX + calendar filter
-- `AnalyzeTrendSignals()` - Master orchestrator
+- `AnalyzeSignalA()` – Trend following with MA crossover
+- `AnalyzeSignalB()` – ADX directional crossover
+- `AnalyzeSignalC()` – Counter-trend on strong moves
+- `AnalyzeSignalD()` – MA momentum + ADX + calendar filter
+- `AnalyzeTrendSignals()` – Master orchestrator
 
-**Benefit:** Add Signal E, F, G without touching main EA file!
+**Benefit:** Add Signal E, F, G without touching the main EA file.
 
-### 2. Calendar Logic Isolated 📅
+### 2. Calendar Logic Isolated
 
 **Before:** Calendar code scattered throughout
-**After:** Dedicated `MilestoneCalendar.mqh` module
+**After:** Dedicated `PrismCalendar.mqh` module
 
 Functions:
-- `PrepareCalendar()` - Fetches news from MT5 API
-- `GetSymbolCurrencies()` - Extracts currency pairs
-- `IsEventImportanceIncluded()` - Filters by impact
-- `IsSpeakingEvent()` - Detects speeches
-- `GetCalendarTypeString()` - Formats display text
+- `PrepareCalendar()` – Fetches news from MT5 API
+- `GetSymbolCurrencies()` – Extracts currency pairs
+- `IsEventImportanceIncluded()` – Filters by impact
+- `IsSpeakingEvent()` – Detects speeches
+- `GetCalendarTypeString()` – Formats display text
 
-**Benefit:** Calendar won't change between versions - maintain once, use forever!
+**Benefit:** Calendar logic maintained in one place.
 
-### 3. Parameters Reorganized by Function 📊
+### 3. Parameters Reorganized by Function
 
-**Old Organization (20.5):**
-- 18 scattered groups
-- Hard to find related settings
-- Minimal descriptions
+14 logical categories replace 18 scattered groups. Every parameter has a descriptive comment.
 
-**New Organization (22.0):**
-- 14 logical categories
-- Related parameters grouped together
-- Every parameter has descriptive comment
-
-#### Example - Risk Management Group
-
+Example:
 ```mql5
 input group "════════ RISK MANAGEMENT ════════";
 input double MarginUsage = 0.1;        // Percentage of balance allocated to regular trades (10% = conservative)
@@ -74,104 +65,47 @@ input double RelativeStop = 0.3;       // Stop loss as percentage of historical 
 input double StopGrowth = 0.005;       // Historical profit threshold to activate stop loss (0.5% of balance)
 ```
 
-**Benefit:** Easy to understand, configure, and optimize!
+### 4. Common Structures Defined
 
-### 4. Common Structures Defined 🏗️
+`PrismTypes.mqh` provides reusable structures for type-safe data passing across modules:
+- `MarketConditions`
+- `PositionStats`
+- `IndicatorValues`
+- `CalendarData`
+- `CalendarEvent`
 
-Created `MilestoneTypes.mqh` with reusable structures:
+### 5. Rebrand to Prism
 
-```mql5
-struct MarketConditions {
-   bool nearLongPosition;
-   bool nearShortPosition;
-   bool rangingMarket;
-   bool bullish;
-   bool bearish;
-   string signalComment;
-}
+- All Milestone references replaced with Prism
+- Copyright updated to Rudi & Claude
+- Explicit version numbers removed (version tracked in git)
 
-struct PositionStats {
-   int totalTrades;
-   int totalBackupTrades;
-   double totalProfit;
-   double totalLoss;
-   double buyLots;
-   double sellLots;
-   int openType;
-}
+## Trading Logic Unchanged
 
-struct IndicatorValues {
-   double ATR;
-   double ADXMain;
-   double ADXPlusDI;
-   // ... etc
-}
-```
+This is a pure refactoring — zero changes to trading behaviour:
+- Signal calculations identical
+- Entry/exit logic identical
+- Risk management identical
+- Calendar integration identical
+- Backup system identical
+- Position management identical
 
-**Benefit:** Type-safe data passing, no global variable soup!
+## File Overview
 
-### 5. Enhanced Documentation 📝
-
-Every file now includes:
-- Clear purpose statement
-- Function documentation
-- Usage examples
-- Parameter explanations
-
-Every parameter includes:
-- What it does
-- Typical use case
-- Conservative vs aggressive guidance
-
-## Code Quality Metrics
-
-| Metric | Version 20.5 | Version 22.0 | Change |
-|--------|--------------|--------------|--------|
-| **Files** | 1 | 6 | +5 modules |
-| **Main EA size** | 1,744 lines | 1,150 lines | -594 lines |
-| **Total code** | 1,744 lines | 2,155 lines | +411 lines |
-| **Functions** | All in one file | Organized by module | Better |
-| **Parameter groups** | 18 scattered | 14 logical | Better |
-| **Comments** | Brief | Comprehensive | Better |
-| **Reusability** | Low | High | Much better |
-| **Maintainability** | Medium | High | Much better |
-
-## Trading Logic Unchanged ✅
-
-**Important:** This is a pure refactoring - **zero changes** to trading behavior:
-
-- ✓ Signal calculations identical
-- ✓ Entry logic identical
-- ✓ Exit logic identical
-- ✓ Risk management identical
-- ✓ Calendar integration identical
-- ✓ Backup system identical
-- ✓ Position management identical
-
-## File Details
-
-### milestone-22.0.mq5 (Main EA)
-- ~1,150 lines
+### prism.mq5 (Main EA)
 - Simplified, focused on coordination
-- Uses include files for details
-- Clean parameter organization
+- Uses include files for detail
+- Clean parameter organisation
 - Clear execution flow
 
-### MilestoneTypes.mqh (175 lines)
-- CalendarEvent structure
-- MarketConditions structure
-- PositionStats structure
-- IndicatorValues structure
-- CalendarData structure
+### PrismTypes.mqh
+- All shared structures
 
-### MilestoneCalendar.mqh (295 lines)
+### PrismCalendar.mqh
 - Economic calendar integration
-- Event filtering by importance
-- Speech detection
-- Time calculations
-- Display formatting
+- Event filtering, speech detection, time calculations
 
-### MilestoneSignals.mqh (285 lines)
+### PrismSignals.mqh
 - Signal A: Trend following
 - Signal B: ADX crossover
 - Signal C: Counter-trend
@@ -179,114 +113,32 @@ Every parameter includes:
 - Time-of-day filtering
 - Master signal orchestrator
 
-### MilestoneIndicators.mqh (135 lines)
+### PrismIndicators.mqh
 - IndicatorHandles management
-- ATR, ADX, MA initialization
-- Buffer reading and validation
-- Error handling
+- ATR, ADX, MA initialisation and buffer reading
 
-### MilestonePositions.mqh (115 lines)
+### PrismPositions.mqh
 - Position statistics calculation
 - Historical profit analysis
-- Proximity detection
-- Pip point calculation
+- Proximity detection and pip point calculation
 
-## Benefits for You
+## Extending the EA
 
-### As a Trader 👤
-1. **Easier configuration** - parameters grouped logically
-2. **Better understanding** - clear descriptions for each setting
-3. **Same reliability** - no trading logic changes
-4. **Visual organization** - easy to find what you need
-
-### As a Developer 👨‍💻
-1. **Easy maintenance** - signals in dedicated file
-2. **Simple extensions** - add Signal E without touching EA
-3. **Reusable modules** - use calendar logic in other EAs
-4. **Clean testing** - test individual modules
-5. **Less debugging** - clear separation of concerns
-
-## Future Enhancements Made Easy
-
-Because of modular structure, adding features is now straightforward:
-
-### Add Signal E (Bollinger Bands)
-1. Edit `MilestoneSignals.mqh` only
+### Add Signal E
+1. Edit `PrismSignals.mqh` only
 2. Add `AnalyzeSignalE()` function
-3. Add to master `AnalyzeTrendSignals()`
-4. Done! Main EA unchanged.
+3. Call it from `AnalyzeTrendSignals()`
+4. Main EA unchanged.
 
 ### Add Custom Calendar Source
-1. Edit `MilestoneCalendar.mqh` only
+1. Edit `PrismCalendar.mqh` only
 2. Replace `PrepareCalendar()` implementation
-3. Keep same CalendarData structure
-4. Done! Main EA unchanged.
+3. Keep same `CalendarData` structure
+4. Main EA unchanged.
 
-### Add New Indicator (RSI)
-1. Edit `MilestoneIndicators.mqh`
-2. Add RSI to IndicatorHandles
-3. Add RSI to IndicatorValues
+### Add New Indicator (e.g. RSI)
+1. Edit `PrismIndicators.mqh`
+2. Add RSI handle to `IndicatorHandles`
+3. Add RSI value to `IndicatorValues`
 4. Read buffer in `ReadIndicatorValues()`
-5. Done! Available to all signals.
-
-## Migration Instructions
-
-### For Existing Users
-1. Copy `Milestone-22.x` folder to `MT5/Experts/`
-2. Compile `milestone-22.0.mq5`
-3. Use your existing parameters from 20.5
-4. Behavior will be identical
-
-### For Developers
-1. Signals → Edit `Includes/MilestoneSignals.mqh`
-2. Calendar → Edit `Includes/MilestoneCalendar.mqh`
-3. Indicators → Edit `Includes/MilestoneIndicators.mqh`
-4. Positions → Edit `Includes/MilestonePositions.mqh`
-5. Structures → Edit `Includes/MilestoneTypes.mqh`
-
-## Testing Status
-
-✅ Code compiles successfully
-✅ All includes found and loaded
-✅ Parameters organized and documented
-✅ Functions extracted correctly
-✅ Structures defined properly
-✅ Documentation complete
-
-**Ready for Strategy Tester!**
-
-## Next Steps
-
-1. **Compile** the EA in MetaEditor
-2. **Test** in Strategy Tester with version 20.5 parameters
-3. **Compare** results (should be identical)
-4. **Deploy** to demo account
-5. **Monitor** for any issues
-6. **Enjoy** the cleaner codebase!
-
-## Questions?
-
-- **"Will this trade differently?"** - No, identical logic
-- **"Can I use my old settings?"** - Yes, all parameters same
-- **"Is this more stable?"** - Same stability, better maintainability
-- **"Can I add features?"** - Much easier now!
-- **"Should I upgrade?"** - Yes, if you plan to modify the code
-
-## Summary
-
-Version 22.0 is a **professional refactoring** of Milestone EA with:
-
-- ✅ Modular architecture (5 include files)
-- ✅ Organized parameters (14 logical groups)
-- ✅ Enhanced documentation (every parameter explained)
-- ✅ Reusable components (use in other projects)
-- ✅ **Zero trading logic changes** (same behavior)
-
-**Result:** Cleaner, more maintainable, easier to extend, but trades exactly the same!
-
----
-
-**Version:** 22.0
-**Date:** February 2026
-**Status:** Ready for testing
-**Backward Compatible:** Yes (with 20.5 parameters)
+5. Available to all signals.

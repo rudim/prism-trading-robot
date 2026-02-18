@@ -1,8 +1,8 @@
-# Backup Trade System Analysis - Milestone EA 20.5
+# Backup Trade System Analysis - Prism
 
 ## Overview
 
-The backup trade system in Milestone EA is **NOT a traditional martingale strategy**. Instead of doubling position sizes after losses, it uses a **conservative grid/averaging approach** with spike detection to add smaller "insurance" positions during minor drawdowns.
+The backup trade system in Prism is **NOT a traditional martingale strategy**. Instead of doubling position sizes after losses, it uses a **conservative grid/averaging approach** with spike detection to add smaller "insurance" positions during minor drawdowns.
 
 ## Key Characteristics
 
@@ -177,7 +177,7 @@ The backup system serves as a **downside protection mechanism**:
 
 ## Comparison to Martingale
 
-| Feature | Traditional Martingale | Milestone Backup System |
+| Feature | Traditional Martingale | Prism Backup System |
 |---------|----------------------|------------------------|
 | **Lot sizing** | Doubles after loss (2x, 4x, 8x) | Fixed smaller size (0.1x of regular) |
 | **Risk profile** | Exponentially increasing | Linear, controlled |
