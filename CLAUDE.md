@@ -60,6 +60,7 @@ Parameters are grouped into 14 logical sections in `prism.mq5` (lines ~1–200).
 - **ATR-based spacing**: `TradeSpace` (minimum distance between trades) is measured in ATR units, not pips
 - **Magic number**: Identifies EA's own orders — never hardcoded; passed from main file to all include functions
 - **Struct-based API**: Functions accept/return `IndicatorValues`, `PositionStats`, `CalendarData` structs rather than raw primitives
+- **Global variable naming**: All file-scope (global) variables in `.mq5` files are prefixed with `_` (e.g., `_indicators`, `_pipPoints`, `_lotSize`). This prevents MQL5 compiler warnings when function parameters in `#include`d files share the same name. Constants use `SCREAMING_CASE` without a prefix (e.g., `ATRShift`, `BaseLotSize`). `input` parameters and MQL5 trading objects (`CTrade`, etc.) are exempt.
 
 ## Documentation
 

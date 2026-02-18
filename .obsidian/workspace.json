@@ -185,6 +185,12 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
+    "source/prism.mq5",
+    "source/prism_x.mq5",
+    "source/original copy.mq5",
+    "docs/toto_bugs.md",
+    "source/original.mq5",
+    "source/Milestone_v20.x.mq5",
     "docs/rm_011_profit_lock_in.md",
     "docs/rm_010_dynamic_max_trades.md",
     "docs/rm_009_volatility_adjusted_sizing.md",
