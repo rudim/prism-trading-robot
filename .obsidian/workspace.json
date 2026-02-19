@@ -185,6 +185,7 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
+    "source/Includes/PrismRiskManager.mqh",
     "docs/rm_001_hard_stop_loss.md",
     "docs/rm_002_max_lot_size_cap.md",
     "docs/rm_003_leverage_normalisation.md",

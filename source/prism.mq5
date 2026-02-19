@@ -20,6 +20,7 @@
 #include "Includes/PrismIndicators.mqh"
 #include "Includes/PrismSignals.mqh"
 #include "Includes/PrismPositions.mqh"
+#include "Includes/PrismRiskManager.mqh"
 
 //+------------------------------------------------------------------+
 //| MT5 CONVERSION: Declare CTrade objects for position management   |
@@ -68,6 +69,18 @@ input double MinLots = 0.03;              // Minimum lot size for any _trade
 input bool EnableStop = true;            // Enable long-term stop loss based on historical profits
 input double RelativeStop = 0.3;          // Stop loss as percentage of historical profit (30% drawdown limit)
 input double StopGrowth = 0.05;          // Historical profit threshold to activate stop loss (0.5% of balance)
+
+//═══════════════════════════════════════════════════════════════════
+//  RISK: LOT SIZE CAP
+//═══════════════════════════════════════════════════════════════════
+input group "════════ RISK: LOT SIZE CAP ════════";
+input bool   EnableLotCap             = true;   // Apply all lot size and basket caps
+input double MaxLotSize               = 0.50;   // Hard ceiling per regular position (lots)
+input double MaxLotsPerThousand       = 0.05;   // Dynamic ceiling: max lots per $1,000 of balance
+input double BackupMaxLotSize         = 0.10;   // Hard ceiling per backup position (lots)
+input double BackupMaxLotsPerThousand = 0.01;   // Dynamic ceiling for backup: max lots per $1,000
+input double MaxBasketLots            = 2.00;   // Hard ceiling on total open lots (all positions combined)
+input double MaxBasketLotsPerThousand = 0.20;   // Dynamic basket ceiling: max total lots per $1,000
 
 //═══════════════════════════════════════════════════════════════════
 //  TRADE MANAGEMENT
@@ -339,6 +352,13 @@ void calculateLotSize()
    if(_lotSize < MinLots) _lotSize = MinLots;
    if(_backupLotSize < MinLots) _backupLotSize = MinLots;
 
+   // Apply per-position lot caps
+   if(EnableLotCap)
+   {
+      _lotSize       = ApplyLotCap(_lotSize,       accountBalance, MaxLotSize,       MaxLotsPerThousand,       MinLots);
+      _backupLotSize = ApplyLotCap(_backupLotSize, accountBalance, BackupMaxLotSize, BackupMaxLotsPerThousand, MinLots);
+   }
+
    // Calculate margin level
    double accountMargin = _accountInfo.Margin();
    if(accountMargin > 0)
@@ -460,6 +480,15 @@ void sendOpen()
          if(_basketNumberType != (int)POSITION_TYPE_BUY) _basketCount = 0;
          if(_basketCount < MaxTrades)
          {
+            if(EnableLotCap && !BasketCapAllows(_stats.buyLots + _stats.sellLots, _lotSize,
+                                                _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
+            {
+               Print("Basket cap reached: skipping BUY. Basket=",
+                     DoubleToString(_stats.buyLots + _stats.sellLots, 2),
+                     " Adding=", DoubleToString(_lotSize, 2));
+               return;
+            }
+
             // MT5 CONVERSION: Check free margin
             // MT4: AccountFreeMarginCheck(Symbol(), OP_BUY, _lotSize)
             // MT5: OrderCalcMargin() then compare with FreeMargin
@@ -502,6 +531,15 @@ void sendOpen()
          if(_basketNumberType != (int)POSITION_TYPE_SELL) _basketCount = 0;
          if(_basketCount < MaxTrades)
          {
+            if(EnableLotCap && !BasketCapAllows(_stats.buyLots + _stats.sellLots, _lotSize,
+                                                _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
+            {
+               Print("Basket cap reached: skipping SELL. Basket=",
+                     DoubleToString(_stats.buyLots + _stats.sellLots, 2),
+                     " Adding=", DoubleToString(_lotSize, 2));
+               return;
+            }
+
             double freeMargin = _accountInfo.FreeMargin();
             double marginRequired = 0;
             if(!OrderCalcMargin(ORDER_TYPE_SELL, _Symbol, _lotSize, bid, marginRequired))
@@ -583,15 +621,23 @@ void sendBack()
 
          if(!_market.nearLongPosition && type == (int)POSITION_TYPE_BUY && _stats.sellLots == 0)
          {
-            string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
-            if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
-               Print("Error opening aggressive BUY backup: ", _trade.ResultRetcodeDescription());
+            if(!EnableLotCap || BasketCapAllows(_stats.buyLots + _stats.sellLots, _backupLotSize,
+                                                _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
+            {
+               string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
+               if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
+                  Print("Error opening aggressive BUY backup: ", _trade.ResultRetcodeDescription());
+            }
          }
          else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL && _stats.buyLots == 0)
          {
-            string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
-            if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
-               Print("Error opening aggressive SELL backup: ", _trade.ResultRetcodeDescription());
+            if(!EnableLotCap || BasketCapAllows(_stats.buyLots + _stats.sellLots, _backupLotSize,
+                                                _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
+            {
+               string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
+               if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
+                  Print("Error opening aggressive SELL backup: ", _trade.ResultRetcodeDescription());
+            }
          }
       }
       else
@@ -606,7 +652,9 @@ void sendBack()
             double marginRequired = 0;
             if(OrderCalcMargin(ORDER_TYPE_BUY, _Symbol, _backupLotSize, ask, marginRequired))
             {
-               if(freeMargin >= marginRequired)
+               if(freeMargin >= marginRequired &&
+                  (!EnableLotCap || BasketCapAllows(_stats.buyLots + _stats.sellLots, _backupLotSize,
+                                                    _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand)))
                {
                   string comment = _version + " Backup " + _market.signalComment + " " + IntegerToString(_basketNumber);
                   if(_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
@@ -630,7 +678,9 @@ void sendBack()
             double marginRequired = 0;
             if(OrderCalcMargin(ORDER_TYPE_SELL, _Symbol, _backupLotSize, bid, marginRequired))
             {
-               if(freeMargin >= marginRequired)
+               if(freeMargin >= marginRequired &&
+                  (!EnableLotCap || BasketCapAllows(_stats.buyLots + _stats.sellLots, _backupLotSize,
+                                                    _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand)))
                {
                   string comment = _version + " Backup " + _market.signalComment + " " + IntegerToString(_basketNumber);
                   if(_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
