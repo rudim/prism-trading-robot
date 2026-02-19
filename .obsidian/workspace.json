@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/rm_002_max_lot_size_cap.md",
+                "file": "docs/rm_001_hard_stop_loss.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "rm_002_max_lot_size_cap"
+              "title": "rm_001_hard_stop_loss"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "docs/rm_002_max_lot_size_cap.md",
+                "file": "docs/rm_001_hard_stop_loss.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for rm_002_max_lot_size_cap"
+              "title": "Backlinks for rm_001_hard_stop_loss"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "docs/rm_002_max_lot_size_cap.md",
+                "file": "docs/rm_001_hard_stop_loss.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from rm_002_max_lot_size_cap"
+              "title": "Outgoing links from rm_001_hard_stop_loss"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "docs/rm_002_max_lot_size_cap.md",
+                "file": "docs/rm_001_hard_stop_loss.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of rm_002_max_lot_size_cap"
+              "title": "Outline of rm_001_hard_stop_loss"
             }
           }
         ]
@@ -185,9 +185,10 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
-    "source/Includes/PrismRiskManager.mqh",
-    "docs/rm_001_hard_stop_loss.md",
+    "docs/rm_013_partial_close.md",
     "docs/rm_002_max_lot_size_cap.md",
+    "docs/rm_001_hard_stop_loss.md",
+    "source/Includes/PrismRiskManager.mqh",
     "docs/rm_003_leverage_normalisation.md",
     "docs/rm_004_emergency_close.md",
     "docs/rm_010_dynamic_max_trades.md",
@@ -210,7 +211,6 @@
     "source/Includes/PrismIndicators.mqh",
     "source/Includes/PrismSignals.mqh",
     "source/Includes/PrismCalendar.mqh",
-    "source/Includes/PrismTypes.mqh",
     "docs/spec_milestone_21.x.md",
     "docs/INSTALLATION_CHECKLIST copy.md",
     "docs/INSTALLATION_CHECKLIST.md",
