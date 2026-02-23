@@ -14,7 +14,6 @@
 void AnalyzePositions(PositionStats &stats,
                      MarketConditions &conditions,
                      int magic,
-                     int magicBackup,
                      double atr,
                      double tradeSpace)
 {
@@ -35,13 +34,12 @@ void AnalyzePositions(PositionStats &stats,
       if(!posInfo.SelectByIndex(i))
          continue;
 
-      if(posInfo.Symbol() == _Symbol &&
-         (posInfo.Magic() == magic || posInfo.Magic() == magicBackup))
+      if(posInfo.Symbol() == _Symbol && posInfo.Magic() == magic)
       {
          stats.totalTrades++;
 
-         // Backup trades are identified by magic number
-         if(posInfo.Magic() == magicBackup)
+         // Check for backup trades
+         if(StringFind(posInfo.Comment(), "Backup", 0) > -1)
             stats.totalBackupTrades++;
 
          if(posInfo.StopLoss() == 0)
@@ -79,7 +77,7 @@ void AnalyzePositions(PositionStats &stats,
 //+------------------------------------------------------------------+
 //| Calculate historical profit from closed deals                    |
 //+------------------------------------------------------------------+
-double CalculateHistoricalProfit(int magic, int magicBackup, int queryHistory, int &symbolHistory)
+double CalculateHistoricalProfit(int magic, int queryHistory, int &symbolHistory)
 {
    symbolHistory = 0;
    double totalHistoryProfit = 0;
@@ -101,8 +99,7 @@ double CalculateHistoricalProfit(int magic, int magicBackup, int queryHistory, i
          continue;
 
       if(HistoryDealGetString(ticket, DEAL_SYMBOL) == _Symbol &&
-         (HistoryDealGetInteger(ticket, DEAL_MAGIC) == magic ||
-          HistoryDealGetInteger(ticket, DEAL_MAGIC) == magicBackup) &&
+         HistoryDealGetInteger(ticket, DEAL_MAGIC) == magic &&
          HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
       {
          if(symbolHistory >= queryHistory)

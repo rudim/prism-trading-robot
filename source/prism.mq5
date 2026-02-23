@@ -33,8 +33,7 @@ CAccountInfo _accountInfo;
 
 //--- EA Version and Magic Number
 string _version = "Prism 0.1";
-int _MAGIC        = 20260220;   // regular trades
-int _MAGIC_BACKUP = 20260221;   // backup trades
+int _MAGIC = 20260220;
 
 //+------------------------------------------------------------------+
 //|                    INPUT PARAMETERS                              |
@@ -82,19 +81,6 @@ input double BackupMaxLotSize         = 0.10;   // Hard ceiling per backup posit
 input double BackupMaxLotsPerThousand = 0.01;   // Dynamic ceiling for backup: max lots per $1,000
 input double MaxBasketLots            = 2.00;   // Hard ceiling on total open lots (all positions combined)
 input double MaxBasketLotsPerThousand = 0.20;   // Dynamic basket ceiling: max total lots per $1,000
-
-//═══════════════════════════════════════════════════════════════════
-//  RISK: POSITION LOSS PROTECTION (Soft Stop)
-//═══════════════════════════════════════════════════════════════════
-input group "════════ RISK: POSITION LOSS PROTECTION ════════";
-input bool   EnableSoftStop          = true;   // Dynamically close positions exceeding loss threshold
-input bool   UseATRStop              = true;   // true = ATR price-level stop, false = balance-% stop
-// ATR mode parameters
-input double ATRStopMultiplier       = 2.5;    // Regular stop: entry ± ATR × this value
-input double BackupATRStopMultiplier = 4.0;    // Backup stop: wider multiplier for counter-trend trades
-// Percentage mode parameters
-input double MaxRiskPercent          = 0.02;   // Max loss per regular position as % of balance (2%)
-input double BackupMaxRiskPercent    = 0.05;   // Max loss per backup position as % of balance (5%)
 
 //═══════════════════════════════════════════════════════════════════
 //  TRADE MANAGEMENT
@@ -292,13 +278,6 @@ void OnDeinit(const int reason)
    // Clear comment
    Comment("");
 
-   // Remove all soft stop chart objects
-   for(int i = ObjectsTotal(0) - 1; i >= 0; i--)
-   {
-      if(StringFind(ObjectName(0, i), "PrismSL_", 0) == 0)
-         ObjectDelete(0, ObjectName(0, i));
-   }
-
    string reasonText = "";
    switch(reason)
    {
@@ -433,8 +412,7 @@ void closeAll(string type = "none")
       if(!_positionInfo.SelectByIndex(i)) continue;
 
       // Check if position belongs to this EA and symbol
-      if(_positionInfo.Symbol() == _Symbol &&
-         (_positionInfo.Magic() == _MAGIC || _positionInfo.Magic() == _MAGIC_BACKUP))
+      if(_positionInfo.Symbol() == _Symbol && _positionInfo.Magic() == _MAGIC)
       {
          _symbolInfo.RefreshRates();
 
@@ -475,8 +453,8 @@ void prepare()
                        SignalD, SignalDStartHour, SignalDEndHour,
                        _pipPoints, EnableCalendar, TrailCalendarMinutes);  // Analyze trend and generate signals
    _pipPoints = GetPipPoint();
-   _totalHistoryProfit = CalculateHistoricalProfit(_MAGIC, _MAGIC_BACKUP, QueryHistory, _symbolHistory);
-   AnalyzePositions(_stats, _market, _MAGIC, _MAGIC_BACKUP, _indicators.ATR, TradeSpace);
+   _totalHistoryProfit = CalculateHistoricalProfit(_MAGIC, QueryHistory, _symbolHistory);
+   AnalyzePositions(_stats, _market, _MAGIC, _indicators.ATR, TradeSpace);
    calculateLotSize();   // Calculate lot sizes and check daily growth
 }
 
@@ -540,10 +518,6 @@ void sendOpen()
                _basketCount++;
                if(_basketNumberType != (int)POSITION_TYPE_BUY) _basketNumber++;
                _stats.openType = (int)POSITION_TYPE_BUY;
-               if(EnableSoftStop && UseATRStop)
-                  CreateSoftStopObject(_trade.ResultOrder(), ORDER_TYPE_BUY, ask,
-                                       _indicators.ATR, false,
-                                       ATRStopMultiplier, BackupATRStopMultiplier);
             }
             else
             {
@@ -589,10 +563,6 @@ void sendOpen()
                _basketCount++;
                if(_basketNumberType != (int)POSITION_TYPE_SELL) _basketNumber++;
                _stats.openType = (int)POSITION_TYPE_SELL;
-               if(EnableSoftStop && UseATRStop)
-                  CreateSoftStopObject(_trade.ResultOrder(), ORDER_TYPE_SELL, bid,
-                                       _indicators.ATR, false,
-                                       ATRStopMultiplier, BackupATRStopMultiplier);
             }
             else
             {
@@ -655,17 +625,8 @@ void sendBack()
                                                 _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
             {
                string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
-               _trade.SetExpertMagicNumber(_MAGIC_BACKUP);
-               if(_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
-               {
-                  if(EnableSoftStop && UseATRStop)
-                     CreateSoftStopObject(_trade.ResultOrder(), ORDER_TYPE_BUY, ask,
-                                          _indicators.ATR, true,
-                                          ATRStopMultiplier, BackupATRStopMultiplier);
-               }
-               else
+               if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
                   Print("Error opening aggressive BUY backup: ", _trade.ResultRetcodeDescription());
-               _trade.SetExpertMagicNumber(_MAGIC);
             }
          }
          else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL && _stats.buyLots == 0)
@@ -674,17 +635,8 @@ void sendBack()
                                                 _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
             {
                string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
-               _trade.SetExpertMagicNumber(_MAGIC_BACKUP);
-               if(_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
-               {
-                  if(EnableSoftStop && UseATRStop)
-                     CreateSoftStopObject(_trade.ResultOrder(), ORDER_TYPE_SELL, bid,
-                                          _indicators.ATR, true,
-                                          ATRStopMultiplier, BackupATRStopMultiplier);
-               }
-               else
+               if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
                   Print("Error opening aggressive SELL backup: ", _trade.ResultRetcodeDescription());
-               _trade.SetExpertMagicNumber(_MAGIC);
             }
          }
       }
@@ -705,19 +657,13 @@ void sendBack()
                                                     _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand)))
                {
                   string comment = _version + " Backup " + _market.signalComment + " " + IntegerToString(_basketNumber);
-                  _trade.SetExpertMagicNumber(_MAGIC_BACKUP);
                   if(_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
                   {
                      Print("Opened BUY backup on spike: ", comment);
                      _lastTradeTime = TimeCurrent();
-                     if(EnableSoftStop && UseATRStop)
-                        CreateSoftStopObject(_trade.ResultOrder(), ORDER_TYPE_BUY, ask,
-                                             _indicators.ATR, true,
-                                             ATRStopMultiplier, BackupATRStopMultiplier);
                   }
                   else
                      Print("Error opening BUY backup: ", _trade.ResultRetcodeDescription());
-                  _trade.SetExpertMagicNumber(_MAGIC);
                }
             }
          }
@@ -737,19 +683,13 @@ void sendBack()
                                                     _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand)))
                {
                   string comment = _version + " Backup " + _market.signalComment + " " + IntegerToString(_basketNumber);
-                  _trade.SetExpertMagicNumber(_MAGIC_BACKUP);
                   if(_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
                   {
                      Print("Opened SELL backup on spike: ", comment);
                      _lastTradeTime = TimeCurrent();
-                     if(EnableSoftStop && UseATRStop)
-                        CreateSoftStopObject(_trade.ResultOrder(), ORDER_TYPE_SELL, bid,
-                                             _indicators.ATR, true,
-                                             ATRStopMultiplier, BackupATRStopMultiplier);
                   }
                   else
                      Print("Error opening SELL backup: ", _trade.ResultRetcodeDescription());
-                  _trade.SetExpertMagicNumber(_MAGIC);
                }
             }
          }
@@ -824,29 +764,8 @@ void managePositions()
       {
          if(!_positionInfo.SelectByIndex(i)) continue;
 
-         if(_positionInfo.Symbol() == _Symbol &&
-            (_positionInfo.Magic() == _MAGIC || _positionInfo.Magic() == _MAGIC_BACKUP))
+         if(_positionInfo.Symbol() == _Symbol && _positionInfo.Magic() == _MAGIC)
          {
-            // Soft stop: per-position loss protection
-            if(EnableSoftStop)
-            {
-               bool isBackup = (_positionInfo.Magic() == _MAGIC_BACKUP);
-               if(SoftStopBreached(_positionInfo.Ticket(), _positionInfo.PositionType(),
-                                   bid, ask, _positionInfo.Profit(), _accountInfo.Balance(),
-                                   UseATRStop, MaxRiskPercent, BackupMaxRiskPercent, isBackup))
-               {
-                  Print("Soft stop: closing ", _positionInfo.Ticket(),
-                        " loss=", DoubleToString(_positionInfo.Profit(), 2));
-                  if(_trade.PositionClose(_positionInfo.Ticket()))
-                  {
-                     DeleteSoftStopObject(_positionInfo.Ticket());
-                     _dailyGrowth += _positionInfo.Profit();
-                     _lastTradeTime = TimeCurrent();
-                  }
-                  continue;
-               }
-            }
-
             // For small number of trades, exit when price moves in favor
             if(_stats.totalTrades <= _maxStartTrades)
             {
