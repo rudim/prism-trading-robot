@@ -83,6 +83,16 @@ input double MaxBasketLots            = 2.00;   // Hard ceiling on total open lo
 input double MaxBasketLotsPerThousand = 0.20;   // Dynamic basket ceiling: max total lots per $1,000
 
 //═══════════════════════════════════════════════════════════════════
+//  RISK: LEVERAGE
+//═══════════════════════════════════════════════════════════════════
+input group "════════ RISK: LEVERAGE ════════";
+input bool EnableLeverageNormalisation  = false;  // Scale lot sizes to reference leverage (disabled = no effect)
+input int  ReferenceLeverage            = 100;    // Reference leverage ratio (100 = 1:100)
+input int  WarnAboveLeverage            = 200;    // Warn if account leverage exceeds this ratio (200 = 1:200)
+input bool EnableEffectiveLeverageCheck = true;   // Block new positions when effective leverage limit is reached
+input int  MaxEffectiveLeverage         = 1000;   // Hard limit on effective leverage: notional/equity (1000 = 1000:1)
+
+//═══════════════════════════════════════════════════════════════════
 //  TRADE MANAGEMENT
 //═══════════════════════════════════════════════════════════════════
 input group "════════ TRADE MANAGEMENT ════════";
@@ -254,6 +264,9 @@ int OnInit()
       Print("╚════════════════════════════════════════════════════════════╝");
    }
 
+   // Leverage normalisation initialisation (rm_003)
+   InitLeverageNormalisation(EnableLeverageNormalisation, WarnAboveLeverage);
+
    // MT5 CONVERSION: Set price arrays as series (index 0 = most recent)
    ArraySetAsSeries(_closeArray, true);
    ArraySetAsSeries(_openArray, true);
@@ -347,6 +360,15 @@ void calculateLotSize()
    // Calculate lot sizes based on margin usage percentage
    _lotSize = NormalizeDouble((accountBalance * MarginUsage / _marginRequirement) * _baseLotSize, 2);
    _backupLotSize = NormalizeDouble((accountBalance * BackupMargin / _marginRequirement) * _baseLotSize, 2);
+
+   // Apply leverage normalisation (rm_003): scale down lots when account leverage
+   // exceeds ReferenceLeverage. No-op when disabled or leverage is within reference.
+   if(EnableLeverageNormalisation)
+   {
+      double factor = GetLeverageNormalisationFactor(EnableLeverageNormalisation, ReferenceLeverage);
+      _lotSize       = NormalizeDouble(_lotSize * factor, 2);
+      _backupLotSize = NormalizeDouble(_backupLotSize * factor, 2);
+   }
 
    // Ensure minimum lot sizes
    if(_lotSize < MinLots) _lotSize = MinLots;
@@ -474,6 +496,11 @@ void sendOpen()
    // Check _spread condition
    if((SafeSpread && _spread < MaxSpread) || !SafeSpread)
    {
+      // Effective leverage check (rm_008): block if current exposure already at limit
+      if(!IsEffectiveLeverageSafe(_stats, _marginRequirement, _accountInfo.Equity(), _baseLotSize,
+                                  EnableEffectiveLeverageCheck, MaxEffectiveLeverage))
+         return;
+
       // Long position signal
       if(!_market.nearLongPosition && _market.bullish && _stats.sellLots == 0 && _openArray[0] < _closeArray[0])
       {
@@ -611,6 +638,11 @@ void sendBack()
       if(CopyOpen(_Symbol, PERIOD_CURRENT, 0, 2, _openArray) < 2) return;
       if(CopyHigh(_Symbol, PERIOD_CURRENT, 0, 2, _highArray) < 2) return;
       if(CopyLow(_Symbol, PERIOD_CURRENT, 0, 2, _lowArray) < 2) return;
+
+      // Effective leverage check (rm_008): block if current exposure already at limit
+      if(!IsEffectiveLeverageSafe(_stats, _marginRequirement, _accountInfo.Equity(), _baseLotSize,
+                                  EnableEffectiveLeverageCheck, MaxEffectiveLeverage))
+         return;
 
       if(Aggressive)
       {
