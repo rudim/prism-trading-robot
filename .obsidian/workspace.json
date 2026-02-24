@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/rm_013_prolonged_drawdown_exit_notes.md",
+                "file": "issues/issue_001_backup_system_not_activating.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "rm_013_prolonged_drawdown_exit_notes"
+              "title": "issue_001_backup_system_not_activating"
             }
           }
         ]
@@ -185,6 +185,9 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
+    "docs/rm_013_prolonged_drawdown_exit_notes.md",
+    "issues/issue_001_backup_system_not_activating.md",
+    "issues",
     "reports/ReportTester-298469420.html",
     "reports/ReportTester-298469420-holding.png",
     "reports/ReportTester-298469420-mfemae.png",
@@ -193,7 +196,6 @@
     "reports",
     "New Folder",
     "docs/rm_013_prolonged_drawdown_exit.md",
-    "docs/rm_013_prolonged_drawdown_exit_notes.md",
     "docs/rm_012_capital_partitioning_model.md",
     "docs/rm_011_profit_lock_in.md",
     "docs/rm_007_trading_pocket.md",
@@ -216,8 +218,6 @@
     "source/original.mq5",
     "source/Milestone_v20.x.mq5",
     "CLAUDE.md",
-    "source/Includes/PrismPositions.mqh",
-    "source/Includes/PrismIndicators.mqh",
     "docs/spec_milestone_21.x.md",
     "docs/INSTALLATION_CHECKLIST copy.md",
     "docs/INSTALLATION_CHECKLIST.md",

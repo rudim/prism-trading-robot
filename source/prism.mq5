@@ -660,23 +660,29 @@ void sendBack()
          if(_market.bullish) type = (int)POSITION_TYPE_BUY;
          else if(_market.bearish) type = (int)POSITION_TYPE_SELL;
 
-         if(!_market.nearLongPosition && type == (int)POSITION_TYPE_BUY && _stats.sellLots == 0)
+         if(!_market.nearLongPosition && type == (int)POSITION_TYPE_BUY &&
+            (AllowHedge || _stats.sellLots == 0))
          {
             if(!EnableLotCap || BasketCapAllows(_stats.buyLots + _stats.sellLots, _backupLotSize,
                                                 _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
             {
                string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
-               if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
+               if(_trade.PositionOpen(_Symbol, ORDER_TYPE_BUY, _backupLotSize, ask, 0, 0, comment))
+                  _lastTradeTime = TimeCurrent();
+               else
                   Print("Error opening aggressive BUY backup: ", _trade.ResultRetcodeDescription());
             }
          }
-         else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL && _stats.buyLots == 0)
+         else if(!_market.nearShortPosition && type == (int)POSITION_TYPE_SELL &&
+                 (AllowHedge || _stats.buyLots == 0))
          {
             if(!EnableLotCap || BasketCapAllows(_stats.buyLots + _stats.sellLots, _backupLotSize,
                                                 _accountInfo.Balance(), MaxBasketLots, MaxBasketLotsPerThousand))
             {
                string comment = _version + " " + _market.signalComment + " Backup " + IntegerToString(_basketNumber);
-               if(!_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
+               if(_trade.PositionOpen(_Symbol, ORDER_TYPE_SELL, _backupLotSize, bid, 0, 0, comment))
+                  _lastTradeTime = TimeCurrent();
+               else
                   Print("Error opening aggressive SELL backup: ", _trade.ResultRetcodeDescription());
             }
          }
@@ -887,17 +893,17 @@ void OnTick()
    if((dayOfWeek != 5 && !TradeFriday) || TradeFriday)
    {
       if(_dailyGrowth / _accountInfo.Balance() < DailyGrowth &&
-         currentTime - _lastTradeTime > SleepSeconds &&
-         (_marginLevel == 0 || _marginLevel > MinMarginLevel))
+         currentTime - _lastTradeTime > SleepSeconds)
       {
-         // Trigger backup system if in drawdown
+         // Trigger backup system if in drawdown — not gated by MinMarginLevel
          if(_stats.totalTrades >= _maxStartTrades &&
             (_accountInfo.Balance() + (_stats.totalProfit + _stats.totalLoss)) / _accountInfo.Balance() < TriggerBackSystem)
          {
             backSystem();
          }
-         // Open new positions if conditions met
-         else if((ContinueTrading || (!ContinueTrading && _stats.totalTrades > 0)) &&
+         // Open new positions only when margin level is sufficient
+         else if((_marginLevel == 0 || _marginLevel > MinMarginLevel) &&
+                 (ContinueTrading || (!ContinueTrading && _stats.totalTrades > 0)) &&
                  (_stats.totalTrades < _maxStartTrades || _maxStartTrades == 0))
          {
             openPosition();
