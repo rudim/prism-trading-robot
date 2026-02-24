@@ -1,6 +1,9 @@
 # RM-011: Profit Lock-In
 
-**Status:** Draft
+> **⚠ OBSOLETE — superseded by [rm_012_capital_partitioning_model.md](rm_012_capital_partitioning_model.md)**
+> This document is retained for historical reference only. Do not implement from this specification.
+
+**Status:** Obsolete
 **Phase:** 3
 **Depends on:** rm_007 (Trading Pocket — integrates naturally when both are enabled)
 

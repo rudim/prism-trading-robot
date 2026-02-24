@@ -1,6 +1,9 @@
 # RM-007: Trading Pocket
 
-**Status:** Draft
+> **⚠ OBSOLETE — superseded by [rm_012_capital_partitioning_model.md](rm_012_capital_partitioning_model.md)**
+> This document is retained for historical reference only. Do not implement from this specification.
+
+**Status:** Obsolete
 **Phase:** 2
 **Depends on:** None (complements rm_011 Profit Lock-In)
 

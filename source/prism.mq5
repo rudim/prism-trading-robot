@@ -126,6 +126,15 @@ input bool Aggressive = true;            // Use aggressive backup mode (trend-fo
 input bool AllowHedge = true;            // Allow backup trades in opposite direction of main positions
 
 //═══════════════════════════════════════════════════════════════════
+//  RISK: DRAWDOWN TIMERS (rm_013)
+//═══════════════════════════════════════════════════════════════════
+input group "════════ RISK: DRAWDOWN TIMERS ════════";
+input bool   ActivateDrawdownTimer   = true;   // Close all when backup open and basket losing for DrawdownTimerMinutes
+input int    DrawdownTimerMinutes    = 1440;   // Minutes backup may be open in net loss before forced close (1440 = 24h)
+input bool   EnableMaxTradeTime      = false;  // Close all positions once basket exceeds MaxTradeTimeMinutes
+input int    MaxTradeTimeMinutes     = 4320;   // Maximum minutes basket may be open before forced close (4320 = 72h)
+
+//═══════════════════════════════════════════════════════════════════
 //  SIGNAL A: Trend Following with MA Crossover
 //═══════════════════════════════════════════════════════════════════
 input group "════════ SIGNAL A: TREND FOLLOWING ════════";
@@ -853,6 +862,11 @@ void OnTick()
    // Prepare all data
    prepare();
 
+   // Drawdown timer checks (rm_013)
+   double netPnL = _stats.totalProfit + _stats.totalLoss;
+   if(CheckBackupDrawdownTimer(_MAGIC, netPnL, ActivateDrawdownTimer, DrawdownTimerMinutes)) { closeAll(); return; }
+   if(CheckMaxTradeTime(_MAGIC, EnableMaxTradeTime, MaxTradeTimeMinutes))                    { closeAll(); return; }
+
    // Force close all if requested
    if(CloseAll)
    {
@@ -894,6 +908,39 @@ void OnTick()
    // Always manage positions and check stops
    managePositions();
    longStop();
+
+   // Timer status display (rm_013)
+   string display = "";
+   if(ActivateDrawdownTimer)
+   {
+      datetime oldestBackup = GetOldestBackupOpenTime(_MAGIC);
+      if(oldestBackup > 0)
+      {
+         long elapsedMin  = (TimeCurrent() - oldestBackup) / 60;
+         long remainMin   = DrawdownTimerMinutes - elapsedMin;
+         datetime deadline = oldestBackup + (datetime)(DrawdownTimerMinutes * 60);
+         if(remainMin > 0)
+            display += "BkpTimer: " + IntegerToString((int)remainMin) + "m (" + TimeToString(deadline, TIME_MINUTES) + ")";
+         else
+            display += "BkpTimer: EXPIRED (awaiting net loss)";
+      }
+   }
+   if(EnableMaxTradeTime)
+   {
+      datetime oldestPos = GetOldestPositionOpenTime(_MAGIC);
+      if(oldestPos > 0)
+      {
+         long elapsedMin  = (TimeCurrent() - oldestPos) / 60;
+         long remainMin   = MaxTradeTimeMinutes - elapsedMin;
+         datetime deadline = oldestPos + (datetime)(MaxTradeTimeMinutes * 60);
+         if(StringLen(display) > 0) display += "  ";
+         if(remainMin > 0)
+            display += "MaxAge: " + IntegerToString((int)remainMin) + "m (" + TimeToString(deadline, TIME_MINUTES) + ")";
+         else
+            display += "MaxAge: EXPIRED";
+      }
+   }
+   Comment(display);
 }
 
 //+------------------------------------------------------------------+

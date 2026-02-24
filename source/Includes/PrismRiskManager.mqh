@@ -5,6 +5,7 @@
 #property copyright "Rudi & Claude"
 
 #include "PrismTypes.mqh"
+#include <Trade\PositionInfo.mqh>
 
 //--- Leverage normalisation state (set once in InitLeverageNormalisation)
 int g_accountLeverage = 0;
@@ -115,4 +116,104 @@ bool BasketCapAllows(double currentBasketLots,
    double dynamicCap     = (accountBalance / 1000.0) * basketPerThousand;
    double basketCeiling  = MathMin(absoluteBasketCap, dynamicCap);
    return (currentBasketLots + lotsToOpen) <= basketCeiling;
+}
+
+//+------------------------------------------------------------------+
+//| rm_013: Returns the open time of the oldest backup trade for     |
+//| this EA on the current symbol. Backup trades are identified by   |
+//| "Backup" in the position comment. Returns 0 when no backup       |
+//| trades are currently open. If the first backup closes and a      |
+//| newer one is open, the clock resets to the newer trade's time.   |
+//+------------------------------------------------------------------+
+datetime GetOldestBackupOpenTime(int magic)
+{
+   datetime oldest = 0;
+   CPositionInfo pos;
+
+   for(int i = 0; i < PositionsTotal(); i++)
+   {
+      if(!pos.SelectByIndex(i)) continue;
+      if(pos.Symbol() != _Symbol || pos.Magic() != magic) continue;
+      if(StringFind(pos.Comment(), "Backup", 0) < 0) continue;
+
+      datetime openTime = (datetime)pos.Time();
+      if(oldest == 0 || openTime < oldest)
+         oldest = openTime;
+   }
+   return oldest;
+}
+
+//+------------------------------------------------------------------+
+//| rm_013: Returns the open time of the oldest position of any      |
+//| type for this EA on the current symbol. Returns 0 when no        |
+//| positions are open.                                              |
+//+------------------------------------------------------------------+
+datetime GetOldestPositionOpenTime(int magic)
+{
+   datetime oldest = 0;
+   CPositionInfo pos;
+
+   for(int i = 0; i < PositionsTotal(); i++)
+   {
+      if(!pos.SelectByIndex(i)) continue;
+      if(pos.Symbol() != _Symbol || pos.Magic() != magic) continue;
+
+      datetime openTime = (datetime)pos.Time();
+      if(oldest == 0 || openTime < oldest)
+         oldest = openTime;
+   }
+   return oldest;
+}
+
+//+------------------------------------------------------------------+
+//| rm_013: Backup drawdown timer check.                             |
+//| Returns true when the oldest backup trade has been open for at   |
+//| least thresholdMinutes AND the basket is in net loss.            |
+//| Only logs and returns true once the threshold is breached.       |
+//| Caller is responsible for closing positions.                     |
+//+------------------------------------------------------------------+
+bool CheckBackupDrawdownTimer(int magic, double netBasketPnL,
+                              bool activate, int thresholdMinutes)
+{
+   if(!activate) return false;
+
+   datetime oldestBackup = GetOldestBackupOpenTime(magic);
+   if(oldestBackup == 0) return false;
+
+   long elapsedMinutes = (TimeCurrent() - oldestBackup) / 60;
+   if(elapsedMinutes < thresholdMinutes) return false;
+
+   if(netBasketPnL >= 0) return false;   // basket recovering — do not interrupt
+
+   datetime deadline = oldestBackup + (datetime)(thresholdMinutes * 60);
+   Print("BACKUP_TIMEOUT: Backup open since ", TimeToString(oldestBackup),
+         ". Deadline was ", TimeToString(deadline),
+         ". Elapsed: ", elapsedMinutes, " min",
+         ". Net PnL: ", DoubleToString(netBasketPnL, 2),
+         ". Closing all positions.");
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//| rm_013: Max trade time check.                                    |
+//| Returns true when the oldest open position has been open for at  |
+//| least thresholdMinutes, regardless of basket P&L.               |
+//| Caller is responsible for closing positions.                     |
+//+------------------------------------------------------------------+
+bool CheckMaxTradeTime(int magic, bool enable, int thresholdMinutes)
+{
+   if(!enable) return false;
+
+   datetime oldestPos = GetOldestPositionOpenTime(magic);
+   if(oldestPos == 0) return false;
+
+   long elapsedMinutes = (TimeCurrent() - oldestPos) / 60;
+   if(elapsedMinutes < thresholdMinutes) return false;
+
+   datetime deadline = oldestPos + (datetime)(thresholdMinutes * 60);
+   Print("MAX_TRADE_TIME: Oldest position open since ", TimeToString(oldestPos),
+         ". Deadline was ", TimeToString(deadline),
+         ". Elapsed: ", elapsedMinutes, " min",
+         ". Closing all positions.");
+   return true;
 }

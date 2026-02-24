@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/rm_011_profit_lock_in.md",
+                "file": "docs/rm_013_prolonged_drawdown_exit_notes.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "rm_011_profit_lock_in"
+              "title": "rm_013_prolonged_drawdown_exit_notes"
             }
           }
         ]
@@ -185,17 +185,27 @@
   },
   "active": "ebbc426d6175a183",
   "lastOpenFiles": [
-    "docs/rm_010_dynamic_max_trades.md",
+    "reports/ReportTester-298469420.html",
+    "reports/ReportTester-298469420-holding.png",
+    "reports/ReportTester-298469420-mfemae.png",
+    "reports/ReportTester-298469420-hst.png",
+    "reports/ReportTester-298469420.png",
+    "reports",
+    "New Folder",
+    "docs/rm_013_prolonged_drawdown_exit.md",
+    "docs/rm_013_prolonged_drawdown_exit_notes.md",
+    "docs/rm_012_capital_partitioning_model.md",
     "docs/rm_011_profit_lock_in.md",
     "docs/rm_007_trading_pocket.md",
-    "docs/rm_008_effective_leverage_monitor.md",
-    "docs/rm_005_drawdown_circuit_breaker.md",
     "docs/rm_006_consecutive_loss_limiter.md",
+    "docs/rm_005_drawdown_circuit_breaker.md",
     "docs/rm_004_emergency_close.md",
+    "docs/rm_010_dynamic_max_trades.md",
+    "docs/rm_009_volatility_adjusted_sizing.md",
+    "docs/rm_008_effective_leverage_monitor.md",
     "docs/rm_003_leverage_normalisation.md",
     "docs/TODO_known_bugs.md",
     "docs/spec_prism_risk_management.md",
-    "docs/rm_009_volatility_adjusted_sizing.md",
     "docs/rm_002_max_lot_size_cap.md",
     "docs/rm_001_hard_stop_loss.md",
     "source/Includes/PrismRiskManager.mqh",
@@ -208,8 +218,6 @@
     "CLAUDE.md",
     "source/Includes/PrismPositions.mqh",
     "source/Includes/PrismIndicators.mqh",
-    "source/Includes/PrismSignals.mqh",
-    "source/Includes/PrismCalendar.mqh",
     "docs/spec_milestone_21.x.md",
     "docs/INSTALLATION_CHECKLIST copy.md",
     "docs/INSTALLATION_CHECKLIST.md",
